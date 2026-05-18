@@ -125,7 +125,7 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 	r.updateStatus(taskID, task.StatusInit, "")
 
 	// Schema 迁移
-	if t.Mode == "schema-only" || t.Mode == "full" || t.Mode == "full+cdc" {
+	if hasMode(t.Mode, "schema") {
 		log.Printf("[Runner] migrating schema...")
 		r.updateStatus(taskID, task.StatusSchema, "")
 		if err := r.migrateSchema(ctx, srcPlugin, tgtPlugin, t); err != nil {
@@ -134,7 +134,7 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 	}
 
 	// 全量迁移
-	if t.Mode == "full" || t.Mode == "full+cdc" {
+	if hasMode(t.Mode, "full") {
 		log.Printf("[Runner] starting full sync...")
 		r.updateStatus(taskID, task.StatusFullSync, "")
 
@@ -254,6 +254,10 @@ func (r *Runner) migrateSchema(ctx context.Context, src plugin.SourcePlugin, tgt
 		log.Printf("[Runner] created table %s", obj.Name)
 	}
 	return nil
+}
+
+func hasMode(mode, target string) bool {
+	return strings.Contains(mode, target)
 }
 
 // OB-specific patterns to strip from CREATE TABLE DDL
