@@ -14,13 +14,15 @@ const (
 
 // ConnectionConfig 数据库连接配置
 type ConnectionConfig struct {
-	Type     DBType `json:"type" yaml:"type"`
-	Host     string `json:"host" yaml:"host"`
-	Port     int    `json:"port" yaml:"port"`
-	User     string `json:"user" yaml:"user"`
-	Password string `json:"password" yaml:"password"`
-	Database string `json:"database" yaml:"database"`
-	Extra    map[string]string `json:"extra,omitempty" yaml:"extra,omitempty"`
+	Type        DBType            `json:"type" yaml:"type"`
+	Host        string            `json:"host" yaml:"host"`
+	Port        int               `json:"port" yaml:"port"`
+	User        string            `json:"user" yaml:"user"`
+	Password    string            `json:"password" yaml:"password"`
+	Database    string            `json:"database" yaml:"database"`
+	ClusterName string            `json:"cluster_name,omitempty" yaml:"cluster_name,omitempty"`
+	TenantName  string            `json:"tenant_name,omitempty" yaml:"tenant_name,omitempty"`
+	Extra       map[string]string `json:"extra,omitempty" yaml:"extra,omitempty"`
 }
 
 // TableFilter 表过滤条件

@@ -28,8 +28,16 @@ func (s *Source) Version() string                   { return "0.1.0" }
 func (s *Source) SupportedDBTypes() []plugin.DBType { return []plugin.DBType{plugin.DBTypeMySQL, plugin.DBTypeOceanBase, plugin.DBTypeTiDB} }
 
 func (s *Source) Connect(ctx context.Context, config plugin.ConnectionConfig) error {
+	user := config.User
+	// OceanBase: 自动拼接 user@tenant#cluster
+	if config.ClusterName != "" && config.TenantName != "" {
+		if user == "" || user == "root" {
+			user = fmt.Sprintf("root@%s#%s", config.TenantName, config.ClusterName)
+		}
+	}
+
 	cfg := mysql.NewConfig()
-	cfg.User = config.User
+	cfg.User = user
 	cfg.Passwd = config.Password
 	cfg.Net = "tcp"
 	cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
