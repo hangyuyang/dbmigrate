@@ -25,7 +25,7 @@ func main() {
 
 	// 初始化任务存储
 	os.MkdirAll(*dataDir, 0755)
-	store, err := task.NewSQLiteStore(*dataDir + "/tasks.db")
+	store, err := task.NewJSONStore(*dataDir)
 	if err != nil {
 		log.Printf("[DBMigrate] warning: failed to open task store: %v", err)
 	} else {

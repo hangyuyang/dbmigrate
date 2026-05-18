@@ -1,12 +1,12 @@
 package task
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
 	"time"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // Store 任务存储接口
@@ -19,127 +19,107 @@ type Store interface {
 	Close() error
 }
 
-// SQLiteStore SQLite 实现
-type SQLiteStore struct {
-	db *sql.DB
+// JSONStore JSON 文件存储
+type JSONStore struct {
+	mu   sync.RWMutex
+	dir  string
 }
 
-// NewSQLiteStore 创建 SQLite 存储
-func NewSQLiteStore(path string) (*SQLiteStore, error) {
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+// NewJSONStore 创建 JSON 文件存储
+func NewJSONStore(dir string) (*JSONStore, error) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("create data dir: %w", err)
 	}
-
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS tasks (
-		id TEXT PRIMARY KEY,
-		name TEXT NOT NULL,
-		status TEXT NOT NULL DEFAULT 'DRAFT',
-		source TEXT NOT NULL,
-		target TEXT NOT NULL,
-		filter TEXT,
-		mode TEXT NOT NULL DEFAULT 'full',
-		chunk_size INTEGER DEFAULT 50000,
-		parallel INTEGER DEFAULT 4,
-		progress TEXT DEFAULT '{}',
-		error_msg TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	)`)
-	if err != nil {
-		return nil, fmt.Errorf("create table: %w", err)
-	}
-
-	return &SQLiteStore{db: db}, nil
+	return &JSONStore{dir: dir}, nil
 }
 
-func (s *SQLiteStore) Create(task *Task) error {
+func taskPath(dir, id string) string {
+	return filepath.Join(dir, id+".json")
+}
+
+func (s *JSONStore) Create(task *Task) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	now := time.Now()
 	task.CreatedAt = now
 	task.UpdatedAt = now
+	task.Progress = Progress{}
 
-	sourceJSON, _ := json.Marshal(task.Source)
-	targetJSON, _ := json.Marshal(task.Target)
-	filterJSON, _ := json.Marshal(task.Filter)
-	progressJSON, _ := json.Marshal(task.Progress)
-
-	_, err := s.db.Exec(
-		`INSERT INTO tasks (id, name, status, source, target, filter, mode, chunk_size, parallel, progress, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		task.ID, task.Name, task.Status, sourceJSON, targetJSON, filterJSON,
-		task.Mode, task.ChunkSize, task.Parallel, progressJSON, task.CreatedAt, task.UpdatedAt,
-	)
-	return err
+	data, err := json.MarshalIndent(task, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(taskPath(s.dir, task.ID), data, 0644)
 }
 
-func (s *SQLiteStore) Get(id string) (*Task, error) {
-	var (
-		t                    Task
-		sourceJSON, targetJSON, filterJSON, progressJSON string
-	)
+func (s *JSONStore) Get(id string) (*Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	err := s.db.QueryRow(
-		`SELECT id, name, status, source, target, filter, mode, chunk_size, parallel, progress, error_msg, created_at, updated_at
-		 FROM tasks WHERE id = ?`, id,
-	).Scan(&t.ID, &t.Name, &t.Status, &sourceJSON, &targetJSON, &filterJSON,
-		&t.Mode, &t.ChunkSize, &t.Parallel, &progressJSON, &t.Error, &t.CreatedAt, &t.UpdatedAt)
+	data, err := os.ReadFile(taskPath(s.dir, id))
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %s", id)
+	}
+	return FromJSON(data)
+}
+
+func (s *JSONStore) List() ([]*Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, err
 	}
-
-	json.Unmarshal([]byte(sourceJSON), &t.Source)
-	json.Unmarshal([]byte(targetJSON), &t.Target)
-	json.Unmarshal([]byte(filterJSON), &t.Filter)
-	json.Unmarshal([]byte(progressJSON), &t.Progress)
-
-	return &t, nil
-}
-
-func (s *SQLiteStore) List() ([]*Task, error) {
-	rows, err := s.db.Query(`SELECT id, name, status, source, target, filter, mode, chunk_size, parallel, progress, error_msg, created_at, updated_at FROM tasks ORDER BY created_at DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 
 	var tasks []*Task
-	for rows.Next() {
-		var t Task
-		var sourceJSON, targetJSON, filterJSON, progressJSON string
-		err := rows.Scan(&t.ID, &t.Name, &t.Status, &sourceJSON, &targetJSON, &filterJSON,
-			&t.Mode, &t.ChunkSize, &t.Parallel, &progressJSON, &t.Error, &t.CreatedAt, &t.UpdatedAt)
-		if err != nil {
-			return nil, err
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
 		}
-		json.Unmarshal([]byte(sourceJSON), &t.Source)
-		json.Unmarshal([]byte(targetJSON), &t.Target)
-		json.Unmarshal([]byte(filterJSON), &t.Filter)
-		json.Unmarshal([]byte(progressJSON), &t.Progress)
-		tasks = append(tasks, &t)
+		data, err := os.ReadFile(filepath.Join(s.dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		task, err := FromJSON(data)
+		if err != nil {
+			continue
+		}
+		tasks = append(tasks, task)
 	}
 	return tasks, nil
 }
 
-func (s *SQLiteStore) Update(task *Task) error {
+func (s *JSONStore) Update(task *Task) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	task.UpdatedAt = time.Now()
-	sourceJSON, _ := json.Marshal(task.Source)
-	targetJSON, _ := json.Marshal(task.Target)
-	filterJSON, _ := json.Marshal(task.Filter)
-	progressJSON, _ := json.Marshal(task.Progress)
+	data, err := json.MarshalIndent(task, "", "  ")
+	if err != nil {
+		return err
+	}
 
-	_, err := s.db.Exec(
-		`UPDATE tasks SET name=?, status=?, source=?, target=?, filter=?, mode=?, chunk_size=?, parallel=?, progress=?, error_msg=?, updated_at=? WHERE id=?`,
-		task.Name, task.Status, sourceJSON, targetJSON, filterJSON,
-		task.Mode, task.ChunkSize, task.Parallel, progressJSON, task.Error, task.UpdatedAt, task.ID,
-	)
-	return err
+	path := taskPath(s.dir, task.ID)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("task not found: %s", task.ID)
+	}
+
+	return os.WriteFile(path, data, 0644)
 }
 
-func (s *SQLiteStore) Delete(id string) error {
-	_, err := s.db.Exec(`DELETE FROM tasks WHERE id = ?`, id)
-	return err
+func (s *JSONStore) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path := taskPath(s.dir, id)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("task not found: %s", id)
+	}
+	return os.Remove(path)
 }
 
-func (s *SQLiteStore) Close() error {
-	return s.db.Close()
+func (s *JSONStore) Close() error {
+	return nil
 }
