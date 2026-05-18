@@ -19,12 +19,19 @@ import (
 	"github.com/hangyuyang/dbmigrate/pkg/task"
 )
 
+// TaskRunner 任务执行接口
+type TaskRunner interface {
+	StartTask(ctx context.Context, taskID string) error
+	StopTask(taskID string)
+}
+
 // Server API Server
 type Server struct {
 	http     *http.Server
 	router   *mux.Router
 	registry *plugin.Registry
 	store    task.Store
+	runner   TaskRunner
 	upgrader websocket.Upgrader
 	webDir   string
 }
@@ -63,6 +70,11 @@ func (s *Server) ServeStatic(webDir string) {
 		// 目录或不存在，回退到 index.html
 		http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
 	})
+}
+
+// InitRunner 初始化任务执行器
+func (s *Server) InitRunner(runner TaskRunner) {
+	s.runner = runner
 }
 
 // InitStore 初始化任务存储
@@ -232,19 +244,52 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStartTask(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not implemented")
+	id := mux.Vars(r)["id"]
+	if s.runner == nil {
+		writeError(w, http.StatusInternalServerError, "task runner not initialized")
+		return
+	}
+	if err := s.runner.StartTask(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "started", "id": id})
 }
 
 func (s *Server) handlePauseTask(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not implemented")
+	id := mux.Vars(r)["id"]
+	// 暂不支持暂停，用停止代替
+	if s.runner != nil {
+		s.runner.StopTask(id)
+	}
+	t, _ := s.store.Get(id)
+	if t != nil {
+		t.Status = task.StatusPaused
+		s.store.Update(t)
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "paused"})
 }
 
 func (s *Server) handleResumeTask(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not implemented")
+	id := mux.Vars(r)["id"]
+	if s.runner == nil {
+		writeError(w, http.StatusInternalServerError, "task runner not initialized")
+		return
+	}
+	// 暂不支持断点续传，当作重新启动
+	if err := s.runner.StartTask(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "resumed"})
 }
 
 func (s *Server) handleStopTask(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not implemented")
+	id := mux.Vars(r)["id"]
+	if s.runner != nil {
+		s.runner.StopTask(id)
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "stopped"})
 }
 
 func (s *Server) handleTaskProgress(w http.ResponseWriter, r *http.Request) {

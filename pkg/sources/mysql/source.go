@@ -2,34 +2,47 @@ package mysql
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hangyuyang/dbmigrate/pkg/plugin"
 )
 
-// Source MySQL 源端插件
+// Source MySQL 源端插件（兼容 OceanBase/TiDB MySQL 模式）
 type Source struct {
-	db   *sql.DB
+	db     *sql.DB
 	config plugin.ConnectionConfig
 }
 
-// NewSource 创建 MySQL 源端插件
 func NewSource() *Source {
 	return &Source{}
 }
 
-func (s *Source) Name() string                         { return "mysql" }
-func (s *Source) Version() string                      { return "0.1.0" }
-func (s *Source) SupportedDBTypes() []plugin.DBType    { return []plugin.DBType{plugin.DBTypeMySQL} }
+func (s *Source) Name() string                      { return "mysql" }
+func (s *Source) Version() string                   { return "0.1.0" }
+func (s *Source) SupportedDBTypes() []plugin.DBType { return []plugin.DBType{plugin.DBTypeMySQL, plugin.DBTypeOceanBase, plugin.DBTypeTiDB} }
 
 func (s *Source) Connect(ctx context.Context, config plugin.ConnectionConfig) error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=true",
-		config.User, config.Password, config.Host, config.Port, config.Database)
+	cfg := mysql.NewConfig()
+	cfg.User = config.User
+	cfg.Passwd = config.Password
+	cfg.Net = "tcp"
+	cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	cfg.DBName = config.Database
+	cfg.Params = map[string]string{
+		"charset":   "utf8mb4",
+		"parseTime": "true",
+	}
+	cfg.Timeout = 10 * time.Second
+	cfg.ReadTimeout = 60 * time.Second
+	cfg.TLS = &tls.Config{InsecureSkipVerify: true}
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		return fmt.Errorf("connect mysql: %w", err)
 	}
@@ -55,13 +68,11 @@ func (s *Source) Ping(ctx context.Context) error {
 }
 
 func (s *Source) Discover(ctx context.Context, filter plugin.TableFilter) ([]plugin.TableMetadata, error) {
-	// 查询 information_schema 获取表元数据
 	query := `SELECT TABLE_NAME, TABLE_ROWS, DATA_LENGTH, ENGINE, TABLE_COLLATION
 			  FROM information_schema.TABLES
 			  WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`
 	args := []interface{}{s.config.Database}
 
-	// 应用过滤
 	if len(filter.IncludeTables) > 0 {
 		query += " AND TABLE_NAME IN ("
 		for i, t := range filter.IncludeTables {
@@ -137,28 +148,9 @@ func (s *Source) FullExport(ctx context.Context, config plugin.FullExportConfig)
 }
 
 func (s *Source) exportTable(ctx context.Context, table plugin.TableMetadata, config plugin.FullExportConfig, out chan<- *plugin.RowBatch) error {
-	if len(table.PKColumns) == 0 {
-		return fmt.Errorf("table %s has no primary key", table.Name)
-	}
-
-	pkCol := table.PKColumns[0]
-
-	// 获取列信息
 	columns, err := s.getColumns(ctx, table.Name)
 	if err != nil {
 		return err
-	}
-
-	// 分块读取
-	var minPK, maxPK sql.NullString
-	err = s.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT MIN(`%s`), MAX(`%s`) FROM `%s`", pkCol, pkCol, table.Name),
-	).Scan(&minPK, &maxPK)
-	if err != nil {
-		return err
-	}
-	if !minPK.Valid || !maxPK.Valid {
-		return nil // 空表
 	}
 
 	chunkSize := config.ChunkSize
@@ -168,8 +160,8 @@ func (s *Source) exportTable(ctx context.Context, table plugin.TableMetadata, co
 
 	offset := 0
 	for {
-		query := fmt.Sprintf("SELECT * FROM `%s` ORDER BY `%s` LIMIT %d OFFSET %d",
-			table.Name, pkCol, chunkSize, offset)
+		query := fmt.Sprintf("SELECT * FROM `%s` LIMIT %d OFFSET %d",
+			table.Name, chunkSize, offset)
 
 		rows, err := s.db.QueryContext(ctx, query)
 		if err != nil {
@@ -233,16 +225,13 @@ func (s *Source) getColumns(ctx context.Context, table string) ([]string, error)
 	return cols, nil
 }
 
-// Subscribe CDC 订阅（MySQL 版本后续实现）
 func (s *Source) Subscribe(ctx context.Context, position plugin.Position) (<-chan *plugin.CDCEvent, <-chan error, error) {
 	return nil, nil, fmt.Errorf("CDC not implemented yet for MySQL source")
 }
 
 func (s *Source) ExtractSchema(ctx context.Context, filter plugin.ObjectFilter) ([]*plugin.DDLObject, error) {
-	// 用 SHOW CREATE TABLE 提取 DDL
 	objects := []*plugin.DDLObject{}
 
-	// 查询表列表
 	tableQuery := `SELECT TABLE_NAME FROM information_schema.TABLES
 				   WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`
 	tableRows, err := s.db.QueryContext(ctx, tableQuery, s.config.Database)
@@ -277,7 +266,6 @@ func (s *Source) ExtractSchema(ctx context.Context, filter plugin.ObjectFilter) 
 }
 
 func (s *Source) CurrentPosition(ctx context.Context) (plugin.Position, error) {
-	// 获取当前 binlog 位点
 	var file string
 	var pos uint32
 	err := s.db.QueryRowContext(ctx, "SHOW MASTER STATUS").Scan(&file, &pos, nil, nil, nil)

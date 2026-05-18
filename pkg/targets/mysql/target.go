@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/hangyuyang/dbmigrate/pkg/plugin"
 )
@@ -25,10 +27,20 @@ func (t *Target) Version() string                    { return "0.1.0" }
 func (t *Target) SupportedDBTypes() []plugin.DBType  { return []plugin.DBType{plugin.DBTypeMySQL, plugin.DBTypePolarDBX} }
 
 func (t *Target) Connect(ctx context.Context, config plugin.ConnectionConfig) error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=true&multiStatements=true",
-		config.User, config.Password, config.Host, config.Port, config.Database)
+	cfg := mysql.NewConfig()
+	cfg.User = config.User
+	cfg.Passwd = config.Password
+	cfg.Net = "tcp"
+	cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	cfg.DBName = config.Database
+	cfg.Params = map[string]string{
+		"charset":         "utf8mb4",
+		"parseTime":       "true",
+		"multiStatements": "true",
+	}
+	cfg.Timeout = 10 * time.Second
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		return fmt.Errorf("connect mysql: %w", err)
 	}
