@@ -79,7 +79,8 @@ a { color: var(--primary); text-decoration: none; }
   margin-left: 220px;
   flex: 1;
   padding: 28px 36px;
-  max-width: 1100px;
+  max-width: 960px;
+  margin-right: auto;
 }
 
 .header {

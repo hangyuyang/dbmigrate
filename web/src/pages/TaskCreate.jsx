@@ -47,6 +47,57 @@ export default function TaskCreate() {
 
   const update = (setter, k, v) => setter(p => ({...p, [k]:v}))
 
+  // 解析连接串
+  const [cmdStr, setCmdStr] = useState('')
+  const [showCmd, setShowCmd] = useState(false)
+
+  function parseConnStr(str) {
+    const result = { host:'', port:'', user:'root', password:'', cluster_name:'', tenant_name:'' }
+    if (!str.trim()) return result
+
+    // 匹配 -h / --host
+    const h = str.match(/-h\s*(\S+)/)
+    if (h) result.host = h[1]
+
+    // 匹配 -P / --port
+    const p = str.match(/-P\s*(\d+)/)
+    if (p) result.port = p[1]
+
+    // 匹配 -u / --user
+    const u = str.match(/-u\s*(\S+)/)
+    if (u) {
+      const user = u[1]
+      result.user = user
+      // 解析 OB 格式: root@tenant#cluster
+      const ob = user.match(/^(\w+)@(\w+)#(\w+)$/)
+      if (ob) {
+        result.user = ob[1]
+        result.tenant_name = ob[2]
+        result.cluster_name = ob[3]
+      }
+    }
+
+    // 匹配 -p / --password (可能紧贴或空格分隔)
+    const pw = str.match(/-p\s*(\S+)/)
+    if (pw && pw[1].charAt(0) !== '-') result.password = pw[1]
+
+    return result
+  }
+
+  function handleParse() {
+    const r = parseConnStr(cmdStr)
+    setSource(p => ({
+      ...p,
+      host: r.host || p.host,
+      port: parseInt(r.port) || p.port,
+      user: r.user || p.user,
+      password: r.password || p.password,
+      tenant_name: r.tenant_name || p.tenant_name,
+      cluster_name: r.cluster_name || p.cluster_name,
+    }))
+    setCmdStr('')
+  }
+
   async function handleTest(dir) {
     const isSrc = dir === 'src'
     const s = isSrc ? setTestingSrc : setTestingTgt
@@ -137,7 +188,29 @@ export default function TaskCreate() {
   if (step === 1) return <>
     <div className="header"><h1>配置连接信息</h1></div>
     <StepBar/>
+
+    <div className="card" style={{background:'var(--primary-light)',border:'1px dashed var(--primary)',padding:'14px 20px'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showCmd?10:0,cursor:'pointer'}} onClick={()=>setShowCmd(!showCmd)}>
+        <span style={{fontSize:14,fontWeight:600,color:'var(--primary)'}}>📋 粘贴连接命令（快速填写）</span>
+        <span style={{fontSize:12,color:'var(--text-dim)'}}>{showCmd ? '收起 ▲' : '展开 ▼'}</span>
+      </div>
+      {showCmd && (
+        <div>
+          <div className="help-text" style={{marginBottom:8}}>支持 mysql / obclient 命令行格式，自动解析地址、端口、账号、密码、集群、租户</div>
+          <div style={{display:'flex',gap:8}}>
+            <input value={cmdStr} onChange={e=>setCmdStr(e.target.value)} 
+              placeholder='mysql -h10.10.180.227 -P2883 -uroot@yyhtenant#obcp -pDBA@#1234 -A'
+              style={{flex:1,fontFamily:'SF Mono,monospace',fontSize:12}}/>
+            <button className="btn btn-primary" onClick={handleParse} disabled={!cmdStr.trim()} style={{whiteSpace:'nowrap'}}>
+              🔍 解析
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+
     <div className="form-row">
+
       <div className="card" style={{flex:1}}>
         <div className="card-header">
           <span>🌊 源端 — OceanBase</span>
