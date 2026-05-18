@@ -153,8 +153,15 @@ func (s *Server) handleTestConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
+	user := config.User
+	if config.ClusterName != "" && config.TenantName != "" {
+		if user == "" || user == "root" {
+			user = fmt.Sprintf("root@%s#%s", config.TenantName, config.ClusterName)
+		}
+	}
+
 	cfg := mysql.NewConfig()
-	cfg.User = config.User
+	cfg.User = user
 	cfg.Passwd = config.Password
 	cfg.Net = "tcp"
 	cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
