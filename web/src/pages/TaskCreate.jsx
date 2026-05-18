@@ -5,8 +5,14 @@ import { createTask, testConnection, discoverSchema } from '../api/client'
 const STEPS = ['选择数据库', '连接配置', '迁移阶段', '迁移对象', '性能配置']
 
 const DB_CAPABILITY = {
-  sources: [{ key:'oceanbase', name:'OceanBase', icon:'🌊', desc:'OB 3.x / 4.x MySQL 模式' }],
-  targets: [{ key:'polardbx', name:'PolarDB-X', icon:'☁️', desc:'集中式 / 分布式' }]
+  sources: [
+    { key:'oceanbase', name:'OceanBase', icon:'🌊', desc:'OB 3.x / 4.x MySQL 模式' },
+    { key:'tidb', name:'TiDB', icon:'⚡', desc:'TiDB 5.x / 6.x / 7.x' },
+  ],
+  targets: [
+    { key:'polardbx-distributed', name:'PolarDB-X 分布式', icon:'☁️', desc:'分布式集群' },
+    { key:'polardbx-centralized', name:'PolarDB-X 集中式', icon:'☁️', desc:'集中式实例' },
+  ]
 }
 
 const DEFAULT_SRC = { host:'', port:2883, user:'root', password:'', cluster_name:'', tenant_name:'', database:'' }
@@ -206,32 +212,51 @@ export default function TaskCreate() {
     <div className="header"><h1>创建迁移任务</h1></div>
     <StepBar/>
     <div className="card" style={{textAlign:'center',padding:'32px'}}>
-      <div style={{fontSize:13,color:'var(--text-dim)',marginBottom:16}}>当前支持：OceanBase → PolarDB-X</div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:24}}>
-        {DB_CAPABILITY.sources.map(db => (
-          <div key={db.key} onClick={()=>setSrcType(db.key)} style={{
-            width:160,padding:'24px 16px',borderRadius:12,cursor:'pointer',textAlign:'center',
-            background: 'var(--primary-light)', border: '2px solid var(--primary)',
-            boxShadow: '0 2px 8px rgba(37,99,235,0.12)'
-          }}>
-            <div style={{fontSize:36}}>{db.icon}</div>
-            <div style={{fontSize:16,fontWeight:700,marginTop:8,color:'var(--primary)'}}>{db.name}</div>
-            <div style={{fontSize:11,color:'var(--text-dim)',marginTop:4}}>{db.desc}</div>
+      <div style={{fontSize:13,color:'var(--text-dim)',marginBottom:20}}>选择源端和目标端数据库类型</div>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'center',gap:24,flexWrap:'wrap'}}>
+        <div style={{display:'flex',flexDirection:'column',gap:12,minWidth:300}}>
+          <div style={{fontSize:13,fontWeight:600,color:'var(--text-dim)',textAlign:'center',marginBottom:4}}>源端数据库</div>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center'}}>
+            {DB_CAPABILITY.sources.map(db => (
+              <div key={db.key} onClick={()=>setSrcType(db.key)} style={{
+                width:170,padding:'20px 14px',borderRadius:12,cursor:'pointer',textAlign:'center',
+                background: srcType===db.key ? 'var(--primary-light)' : 'white',
+                border: `2px solid ${srcType===db.key ? 'var(--primary)' : 'var(--border)'}`,
+                boxShadow: srcType===db.key ? '0 2px 8px rgba(37,99,235,0.12)' : 'var(--shadow)',
+                transition:'all .2s'
+              }}>
+                <div style={{fontSize:32}}>{db.icon}</div>
+                <div style={{fontSize:14,fontWeight:700,marginTop:6,color:srcType===db.key?'var(--primary)':'var(--text)'}}>{db.name}</div>
+                <div style={{fontSize:11,color:'var(--text-dim)',marginTop:4}}>{db.desc}</div>
+              </div>
+            ))}
           </div>
-        ))}
-        <div style={{fontSize:28,color:'var(--text-dim)',fontWeight:300}}>→</div>
-        {DB_CAPABILITY.targets.map(db => (
-          <div key={db.key} onClick={()=>setTgtType(db.key)} style={{
-            width:160,padding:'24px 16px',borderRadius:12,cursor:'pointer',textAlign:'center',
-            background: 'var(--success-light)', border: '2px solid var(--success)',
-            boxShadow: '0 2px 8px rgba(22,163,74,0.12)'
-          }}>
-            <div style={{fontSize:36}}>{db.icon}</div>
-            <div style={{fontSize:16,fontWeight:700,marginTop:8,color:'var(--success)'}}>{db.name}</div>
-            <div style={{fontSize:11,color:'var(--text-dim)',marginTop:4}}>{db.desc}</div>
+        </div>
+        <div style={{fontSize:28,color:'var(--text-dim)',fontWeight:300,alignSelf:'center',paddingTop:20}}>→</div>
+        <div style={{display:'flex',flexDirection:'column',gap:12,minWidth:300}}>
+          <div style={{fontSize:13,fontWeight:600,color:'var(--text-dim)',textAlign:'center',marginBottom:4}}>目标端数据库</div>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center'}}>
+            {DB_CAPABILITY.targets.map(db => (
+              <div key={db.key} onClick={()=>setTgtType(db.key)} style={{
+                width:170,padding:'20px 14px',borderRadius:12,cursor:'pointer',textAlign:'center',
+                background: tgtType===db.key ? 'var(--success-light)' : 'white',
+                border: `2px solid ${tgtType===db.key ? 'var(--success)' : 'var(--border)'}`,
+                boxShadow: tgtType===db.key ? '0 2px 8px rgba(22,163,74,0.12)' : 'var(--shadow)',
+                transition:'all .2s'
+              }}>
+                <div style={{fontSize:32}}>{db.icon}</div>
+                <div style={{fontSize:14,fontWeight:700,marginTop:6,color:tgtType===db.key?'var(--success)':'var(--text)'}}>{db.name}</div>
+                <div style={{fontSize:11,color:'var(--text-dim)',marginTop:4}}>{db.desc}</div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
+      {srcType && tgtType && (
+        <div style={{marginTop:16,textAlign:'center',fontSize:14,fontWeight:600,color:'var(--primary)'}}>
+          {DB_CAPABILITY.sources.find(d=>d.key===srcType)?.name} → {DB_CAPABILITY.targets.find(d=>d.key===tgtType)?.name}
+        </div>
+      )}
     </div>
     <div style={{display:'flex',justifyContent:'flex-end'}}>
       <button className="btn btn-primary" onClick={()=>setStep(1)}>下一步 →</button>
@@ -247,7 +272,7 @@ export default function TaskCreate() {
 
       <div className="card" style={{flex:1}}>
         <div className="card-header">
-          <span>🌊 源端 — OceanBase</span>
+          <span>{srcType==='oceanbase' ? '🌊' : '⚡'} 源端 — {srcType==='oceanbase'?'OceanBase':'TiDB'}</span>
           <button className="btn btn-outline btn-sm" onClick={()=>handleTest('src')} disabled={testingSrc}>
             {testingSrc?'测试中...':'🔗 测试连接'}
           </button>
@@ -289,7 +314,7 @@ export default function TaskCreate() {
       </div>
       <div className="card" style={{flex:1}}>
         <div className="card-header">
-          <span>☁️ 目标端 — PolarDB-X</span>
+          <span>☁️ 目标端 — {tgtType==='polardbx-distributed'?'PolarDB-X 分布式':'PolarDB-X 集中式'}</span>
           <button className="btn btn-outline btn-sm" onClick={()=>handleTest('tgt')} disabled={testingTgt}>
             {testingTgt?'测试中...':'🔗 测试连接'}
           </button>
