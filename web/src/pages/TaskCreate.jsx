@@ -36,6 +36,8 @@ export default function TaskCreate() {
   const [migrateSchema, setMigrateSchema] = useState(true)
   const [migrateFull, setMigrateFull] = useState(true)
   const [migrateCDC, setMigrateCDC] = useState(false)
+  const [cdcDML, setCdcDML] = useState(true)
+  const [cdcDDL, setCdcDDL] = useState(true)
   const [enableVerify, setEnableVerify] = useState(true)
 
   const [selectedDB, setSelectedDB] = useState('')
@@ -358,6 +360,7 @@ export default function TaskCreate() {
   if (step === 2) return <>
     <div className="header"><h1>选择迁移阶段</h1></div>
     <StepBar/>
+
     <div className="card">
       <div style={{display:'flex',gap:16}}>
         {[
@@ -365,20 +368,48 @@ export default function TaskCreate() {
           {k:'full',label:'全量迁移',desc:'所有存量数据的完整同步',c:migrateFull,s:setMigrateFull},
           {k:'cdc',label:'增量同步',desc:'实时捕获源端变更并同步',c:migrateCDC,s:setMigrateCDC},
         ].map(m=>(
-          <label key={m.k} style={{flex:1,display:'flex',gap:12,padding:'20px',borderRadius:10,cursor:'pointer',
-            background:m.c?'var(--primary-light)':'var(--bg)',border:`2px solid ${m.c?'var(--primary)':'var(--border)'}`}}>
-            <input type="checkbox" checked={m.c} onChange={e=>m.s(e.target.checked)} style={{width:18,height:18}}/>
-            <div><div style={{fontWeight:600,fontSize:15}}>{m.label}</div><div style={{fontSize:12,color:'var(--text-dim)',marginTop:4}}>{m.desc}</div></div>
-          </label>
+          <div key={m.k} style={{flex:1}}>
+            <label style={{gap:12,padding:'20px',borderRadius:10,cursor:'pointer',display:'flex',alignItems:'flex-start',
+              background:m.c?'var(--primary-light)':'var(--bg)',border:`2px solid ${m.c?'var(--primary)':'var(--border)'}`}}>
+              <input type="checkbox" checked={m.c} onChange={e=>m.s(e.target.checked)} style={{width:18,height:18,marginTop:2}}/>
+              <div style={{flex:1}}><div style={{fontWeight:600,fontSize:15}}>{m.label}</div><div style={{fontSize:12,color:'var(--text-dim)',marginTop:4}}>{m.desc}</div></div>
+            </label>
+            {/* CDC 子选项 */}
+            {m.k === 'cdc' && migrateCDC && (
+              <div style={{marginTop:10, marginLeft:34, display:'flex', gap:16}}>
+                <label style={{display:'flex',gap:6,alignItems:'center',cursor:'pointer',fontSize:13,
+                  padding:'6px 14px',borderRadius:6,background:cdcDML?'var(--primary-light)':'white',border:`1px solid ${cdcDML?'var(--primary)':'var(--border)'}`}}>
+                  <input type="checkbox" checked={cdcDML} onChange={e=>setCdcDML(e.target.checked)}/>
+                  DML 同步
+                </label>
+                <label style={{display:'flex',gap:6,alignItems:'center',cursor:'pointer',fontSize:13,
+                  padding:'6px 14px',borderRadius:6,background:cdcDDL?'var(--primary-light)':'white',border:`1px solid ${cdcDDL?'var(--primary)':'var(--border)'}`}}>
+                  <input type="checkbox" checked={cdcDDL} onChange={e=>setCdcDDL(e.target.checked)}/>
+                  DDL 同步
+                </label>
+              </div>
+            )}
+          </div>
         ))}
       </div>
-      <div style={{marginTop:16,borderTop:'1px solid var(--border)',paddingTop:14}}>
-        <label style={{display:'flex',gap:8,alignItems:'center',cursor:'pointer',fontSize:14}}>
-          <input type="checkbox" checked={enableVerify} onChange={e=>setEnableVerify(e.target.checked)}/>
-          迁移完成后自动进行数据校验
-        </label>
+    </div>
+
+    {/* 数据校验 — 独立突出卡片 */}
+    <div className="card" style={{background:'#fffbeb',border:'1px solid #fbbf24'}}>
+      <div style={{display:'flex',alignItems:'center',gap:12}}>
+        <div style={{fontSize:28}}>✅</div>
+        <div style={{flex:1}}>
+          <label style={{display:'flex',gap:8,alignItems:'center',cursor:'pointer',fontSize:16,fontWeight:600,color:'#92400e'}}>
+            <input type="checkbox" checked={enableVerify} onChange={e=>setEnableVerify(e.target.checked)} style={{width:20,height:20}}/>
+            迁移完成后自动进行数据校验
+          </label>
+          <div style={{fontSize:12,color:'#a16207',marginTop:4,marginLeft:28}}>
+            自动比对源端与目标端数据行数，确保数据完整一致
+          </div>
+        </div>
       </div>
     </div>
+
     <div style={{display:'flex',justifyContent:'flex-end',marginTop:8,gap:8}}>
       <button className="btn btn-outline" onClick={()=>setStep(1)}>←</button>
       <button className="btn btn-primary" disabled={!canNext4} onClick={()=>setStep(3)}>下一步 →</button>
