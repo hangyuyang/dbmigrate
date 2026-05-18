@@ -177,6 +177,7 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 			}
 		}
 		log.Printf("[Runner] verify PASSED: %d/%d tables", verified, len(tables))
+		r.updateStatus(taskID, task.StatusCompleted, "")
 	}
 
 	return nil
