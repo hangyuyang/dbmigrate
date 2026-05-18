@@ -39,6 +39,8 @@ export default function TaskCreate() {
   const [cdcDML, setCdcDML] = useState(true)
   const [cdcDDL, setCdcDDL] = useState(true)
   const [enableVerify, setEnableVerify] = useState(true)
+  const [verifyObject, setVerifyObject] = useState(true)
+  const [verifyData, setVerifyData] = useState(true)
 
   const [selectedDB, setSelectedDB] = useState('')
   const [includeTables, setIncludeTables] = useState('')
@@ -394,19 +396,30 @@ export default function TaskCreate() {
       </div>
     </div>
 
-    {/* 数据校验 — 独立突出卡片 */}
-    <div className="card" style={{background:'#fffbeb',border:'1px solid #fbbf24'}}>
-      <div style={{display:'flex',alignItems:'center',gap:12}}>
-        <div style={{fontSize:28}}>✅</div>
-        <div style={{flex:1}}>
-          <label style={{display:'flex',gap:8,alignItems:'center',cursor:'pointer',fontSize:16,fontWeight:600,color:'#92400e'}}>
-            <input type="checkbox" checked={enableVerify} onChange={e=>setEnableVerify(e.target.checked)} style={{width:20,height:20}}/>
-            迁移完成后自动进行数据校验
-          </label>
-          <div style={{fontSize:12,color:'#a16207',marginTop:4,marginLeft:28}}>
-            自动比对源端与目标端数据行数，确保数据完整一致
-          </div>
+    {/* 数据校验 */}
+    <div className="card" style={{background:enableVerify?'#fffbeb':'white',border:enableVerify?'1px solid #fbbf24':'1px solid var(--border)'}}>
+      <div>
+        <label style={{display:'flex',gap:8,alignItems:'center',cursor:'pointer',fontSize:16,fontWeight:600,color:'#92400e'}}>
+          <input type="checkbox" checked={enableVerify} onChange={e=>setEnableVerify(e.target.checked)} style={{width:18,height:18}}/>
+          数据校验
+        </label>
+        <div style={{fontSize:12,color:'#a16207',marginTop:4,marginLeft:26}}>
+          迁移完成后自动校验，确保源端与目标端一致
         </div>
+        {enableVerify && (
+          <div style={{marginTop:10,marginLeft:26,display:'flex',gap:16}}>
+            <label style={{display:'flex',gap:6,alignItems:'center',cursor:'pointer',fontSize:13,
+              padding:'6px 14px',borderRadius:6,background:verifyObject?'var(--primary-light)':'white',border:`1px solid ${verifyObject?'var(--primary)':'var(--border)'}`}}>
+              <input type="checkbox" checked={verifyObject} onChange={e=>setVerifyObject(e.target.checked)}/>
+              对象校验
+            </label>
+            <label style={{display:'flex',gap:6,alignItems:'center',cursor:'pointer',fontSize:13,
+              padding:'6px 14px',borderRadius:6,background:verifyData?'var(--primary-light)':'white',border:`1px solid ${verifyData?'var(--primary)':'var(--border)'}`}}>
+              <input type="checkbox" checked={verifyData} onChange={e=>setVerifyData(e.target.checked)}/>
+              数据校验
+            </label>
+          </div>
+        )}
       </div>
     </div>
 
