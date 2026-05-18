@@ -40,7 +40,7 @@ a { color: var(--primary); text-decoration: none; }
 .layout { display: flex; min-height: 100vh; }
 
 .sidebar {
-  width: 220px;
+  width: 200px;
   background: linear-gradient(180deg, #1e3a5f 0%, #1e293b 100%);
   padding: 20px 0;
   position: fixed;
@@ -76,10 +76,10 @@ a { color: var(--primary); text-decoration: none; }
 .sidebar-nav li a .icon { font-size: 16px; width: 20px; text-align: center; }
 
 .main {
-  margin-left: 220px;
+  margin-left: 200px;
   flex: 1;
-  padding: 28px 36px;
-  max-width: 960px;
+  padding: 28px 40px;
+  max-width: 1200px;
   margin-right: auto;
 }
 
