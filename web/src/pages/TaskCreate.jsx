@@ -158,13 +158,23 @@ export default function TaskCreate() {
     setSubmitting(true)
     try {
       const src = {...source, type: srcType}
-      const tgt = {...target, type: tgtType}
+      const tgt = {...target, type: tgtType, database: selectedDB}
       if (src.cluster_name && src.tenant_name) src.user = `root@${src.tenant_name}#${src.cluster_name}`
+
+      // Auto-derive source database from schema tree selection
+      const schemas = new Set()
+      Object.keys(selectedTables).forEach(k => {
+        const parts = k.split('.')
+        if (parts.length === 2) schemas.add(parts[0])
+      })
+      const schemaList = [...schemas]
+      if (schemaList.length > 0) src.database = schemaList[0]
+
       const mode = [migrateSchema&&'schema',migrateFull&&'full',migrateCDC&&'cdc'].filter(Boolean).join('+')
       await createTask({
         name: `OB → PDB-X`,
         mode, source: src, target: tgt,
-        filter: { include_tables: includeTables?includeTables.split(/[,\s]+/).filter(Boolean):[], exclude_tables: excludeTables?excludeTables.split(/[,\s]+/).filter(Boolean):[], include_schemas: selectedDB?[selectedDB]:[] },
+        filter: { include_tables: [], exclude_tables: [], include_schemas: schemaList },
         migrate_objects: objects,
         chunk_size: chunkSize, parallel, batch_size: batchSize,
         error_policy: errorPolicy, enable_verify: enableVerify, verify_method: 'checksum',
@@ -398,6 +408,14 @@ export default function TaskCreate() {
           })}
         </div>
       )}
+    </div>
+
+    <div className="card">
+      <div className="card-header">目标数据库</div>
+      <div className="form-group">
+        <input value={selectedDB} onChange={e=>setSelectedDB(e.target.value)} placeholder="输入目标 PolarDB-X 中的数据库名，如 yyhdb"/>
+        <div className="help-text">数据将迁移到此数据库中</div>
+      </div>
     </div>
 
     <div className="card">
