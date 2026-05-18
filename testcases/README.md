@@ -27,11 +27,18 @@
 - **脚本**: `tc002_performance_test.sh`
 - **状态**: ⏳ 待验证
 
-### TC003 — DDL类型覆盖：特殊类型迁移
-- **源**: OB (手动建表, 覆盖VARCHAR超长/TEXT/BLOB/JSON/DECIMAL/ENUM/DATE)
+### TC003 — 全对象/全类型覆盖测试 ✅
+- **源**: OB yyhtenant.testdb_comprehensive (14表+2视图, ~7500行)
 - **目标**: PDB-X
-- **验证**: 类型映射正确, 超长VARCHAR→TEXT告警
-- **状态**: 🔜 待开发
+- **覆盖**: 
+  - 数值: TINYINT/SMALLINT/MEDIUMINT/INT/BIGINT/FLOAT/DOUBLE/DECIMAL(65,30)/BIT/BOOLEAN
+  - 字符串: CHAR/VARCHAR(65535)/BINARY/VARBINARY/TEXT/MEDIUMTEXT/LONGTEXT/BLOB/TINYTEXT/TINYBLOB
+  - 特殊: ENUM/SET/JSON/DATE/TIME/DATETIME(6)/TIMESTAMP(6)/YEAR
+  - 分区: RANGE/HASH/LIST/KEY+子分区
+  - 约束: UNIQUE/CHECK/NOT NULL/DEFAULT/ON UPDATE
+  - 索引: BTREE/UNIQUE/复合/前缀
+  - 视图: 简单视图+聚合视图
+- **脚本**: `testdata/tc003_comprehensive_schema.sql`, `testdata/tc003_generate_data.py`
 
 ### TC004 — 增量同步验证
 - **源**: OB yyhtenant.testdb
