@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -24,6 +26,7 @@ type Server struct {
 	registry *plugin.Registry
 	store    task.Store
 	upgrader websocket.Upgrader
+	webDir   string
 }
 
 // NewServer 创建 API Server
@@ -41,6 +44,25 @@ func NewServer(port int) *Server {
 		Handler: s.router,
 	}
 	return s
+}
+
+// ServeStatic 注册前端静态文件（SPA 模式）
+func (s *Server) ServeStatic(webDir string) {
+	s.webDir = webDir
+
+	// API 之外的请求回退到 index.html（支持 SPA routing）
+	s.router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(webDir, r.URL.Path)
+
+		// 如果是文件，直接返回
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			http.ServeFile(w, r, path)
+			return
+		}
+
+		// 目录或不存在，回退到 index.html
+		http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
+	})
 }
 
 // InitStore 初始化任务存储

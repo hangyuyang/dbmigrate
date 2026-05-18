@@ -10,15 +10,34 @@ import (
 	"syscall"
 
 	"github.com/hangyuyang/dbmigrate/pkg/api"
+	"github.com/hangyuyang/dbmigrate/pkg/task"
 )
 
 func main() {
 	var (
-		port = flag.Int("port", 8080, "API server port")
+		port   = flag.Int("port", 8080, "API server port")
+		webDir = flag.String("web-dir", "", "Static web UI directory (e.g. web/dist)")
+		dataDir = flag.String("data-dir", "./data", "Data directory for task store")
 	)
 	flag.Parse()
 
 	srv := api.NewServer(*port)
+
+	// 初始化任务存储
+	os.MkdirAll(*dataDir, 0755)
+	store, err := task.NewSQLiteStore(*dataDir + "/tasks.db")
+	if err != nil {
+		log.Printf("[DBMigrate] warning: failed to open task store: %v", err)
+	} else {
+		srv.InitStore(store)
+		defer store.Close()
+	}
+
+	// 注册前端静态文件
+	if *webDir != "" {
+		srv.ServeStatic(*webDir)
+		log.Printf("[DBMigrate] serving web UI from %s", *webDir)
+	}
 
 	go func() {
 		addr := fmt.Sprintf(":%d", *port)
