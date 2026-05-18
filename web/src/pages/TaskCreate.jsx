@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createTask } from '../api/client'
+import { createTask, testConnection } from '../api/client'
 
 const STEPS = ['基础配置', '迁移内容', '高级选项', '确认提交']
 
@@ -53,6 +53,32 @@ export default function TaskCreate() {
   }
 
   const updateField = (setter, field, value) => setter(prev => ({ ...prev, [field]: value }))
+
+  // Test connection state
+  const [testingSrc, setTestingSrc] = useState(false)
+  const [testingTgt, setTestingTgt] = useState(false)
+  const [srcResult, setSrcResult] = useState(null)
+  const [tgtResult, setTgtResult] = useState(null)
+
+  async function handleTestSource() {
+    setTestingSrc(true); setSrcResult(null)
+    try {
+      const r = await testConnection(source)
+      setSrcResult(r)
+    } catch(e) {
+      setSrcResult({ success: false, error: e.message })
+    } finally { setTestingSrc(false) }
+  }
+
+  async function handleTestTarget() {
+    setTestingTgt(true); setTgtResult(null)
+    try {
+      const r = await testConnection(target)
+      setTgtResult(r)
+    } catch(e) {
+      setTgtResult({ success: false, error: e.message })
+    } finally { setTestingTgt(false) }
+  }
 
   async function handleSubmit() {
     if (!name.trim()) { alert('请输入任务名称'); return }
@@ -122,7 +148,12 @@ export default function TaskCreate() {
 
           <div className="form-row">
             <div className="card">
-              <div className="card-header">源数据库</div>
+              <div className="card-header">
+                <span>源数据库</span>
+                <button className="btn btn-outline btn-sm" onClick={handleTestSource} disabled={testingSrc}>
+                  {testingSrc ? '测试中...' : '🔗 测试连接'}
+                </button>
+              </div>
               <div className="form-group">
                 <label>类型</label>
                 <select value={source.type} onChange={e => updateField(setSource, 'type', e.target.value)}>
@@ -157,10 +188,24 @@ export default function TaskCreate() {
                 <label>数据库</label>
                 <input value={source.database} onChange={e => updateField(setSource, 'database', e.target.value)} placeholder="源库名" />
               </div>
+              {srcResult && (
+                <div style={{marginTop:8, padding:'8px 12px', borderRadius:4, fontSize:12,
+                  background: srcResult.success ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                  border: `1px solid ${srcResult.success ? 'var(--success)' : 'var(--error)'}` }}>
+                  {srcResult.success
+                    ? <>✅ 连接成功 — {srcResult.version} — {srcResult.latency_ms}ms</>
+                    : <>❌ 连接失败 — {srcResult.error}</>}
+                </div>
+              )}
             </div>
 
             <div className="card">
-              <div className="card-header">目标数据库</div>
+              <div className="card-header">
+                <span>目标数据库</span>
+                <button className="btn btn-outline btn-sm" onClick={handleTestTarget} disabled={testingTgt}>
+                  {testingTgt ? '测试中...' : '🔗 测试连接'}
+                </button>
+              </div>
               <div className="form-group">
                 <label>类型</label>
                 <select value={target.type} onChange={e => updateField(setTarget, 'type', e.target.value)}>
@@ -195,6 +240,15 @@ export default function TaskCreate() {
                 <label>数据库</label>
                 <input value={target.database} onChange={e => updateField(setTarget, 'database', e.target.value)} placeholder="目标库名" />
               </div>
+              {tgtResult && (
+                <div style={{marginTop:8, padding:'8px 12px', borderRadius:4, fontSize:12,
+                  background: tgtResult.success ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                  border: `1px solid ${tgtResult.success ? 'var(--success)' : 'var(--error)'}` }}>
+                  {tgtResult.success
+                    ? <>✅ 连接成功 — {tgtResult.version} — {tgtResult.latency_ms}ms</>
+                    : <>❌ 连接失败 — {tgtResult.error}</>}
+                </div>
+              )}
             </div>
           </div>
         </div>

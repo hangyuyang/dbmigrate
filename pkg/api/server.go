@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,6 +14,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
@@ -142,8 +146,46 @@ func (s *Server) handleListDatasources(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTestConnection(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-	json.NewEncoder(w).Encode(map[string]string{"error": "not implemented"})
+	var config plugin.ConnectionConfig
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	start := time.Now()
+	cfg := mysql.NewConfig()
+	cfg.User = config.User
+	cfg.Passwd = config.Password
+	cfg.Net = "tcp"
+	cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	cfg.DBName = config.Database
+	cfg.Timeout = 10 * time.Second
+	cfg.TLS = &tls.Config{InsecureSkipVerify: true}
+
+	db, err := sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+		return
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error(), "latency_ms": time.Since(start).Milliseconds()})
+		return
+	}
+
+	// 获取版本信息
+	var version string
+	db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&version)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":    true,
+		"version":    version,
+		"latency_ms": time.Since(start).Milliseconds(),
+	})
 }
 
 func (s *Server) handleListPlugins(w http.ResponseWriter, r *http.Request) {
