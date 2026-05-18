@@ -30,13 +30,30 @@ type Task struct {
 	Source      plugin.ConnectionConfig `json:"source"`
 	Target      plugin.ConnectionConfig `json:"target"`
 	Filter      plugin.TableFilter  `json:"filter"`
-	Mode        string              `json:"mode"` // full, full+cdc, cdc-only, schema-only
+	Mode        string              `json:"mode"`
 	ChunkSize   int64               `json:"chunk_size"`
 	Parallel    int                 `json:"parallel"`
+	BatchSize   int                 `json:"batch_size"`
+	RateLimit   int                 `json:"rate_limit"`
+	ErrorPolicy string              `json:"error_policy"`
+	MigrateObjects MigrateObjects   `json:"migrate_objects"`
+	EnableVerify   bool             `json:"enable_verify"`
+	VerifyMethod   string           `json:"verify_method"`
+	VerifyChunks   int              `json:"verify_chunks"`
 	Progress    Progress            `json:"progress"`
 	Error       string              `json:"error,omitempty"`
 	CreatedAt   time.Time           `json:"created_at"`
 	UpdatedAt   time.Time           `json:"updated_at"`
+}
+
+// MigrateObjects 迁移对象选择
+type MigrateObjects struct {
+	Tables      bool `json:"tables"`
+	Views       bool `json:"views"`
+	Indexes     bool `json:"indexes"`
+	Procedures  bool `json:"procedures"`
+	Functions   bool `json:"functions"`
+	Triggers    bool `json:"triggers"`
 }
 
 // Progress 任务进度

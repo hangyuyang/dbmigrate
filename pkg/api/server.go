@@ -161,13 +161,20 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input struct {
-		Name      string                   `json:"name"`
-		Source    plugin.ConnectionConfig  `json:"source"`
-		Target    plugin.ConnectionConfig  `json:"target"`
-		Filter    plugin.TableFilter       `json:"filter"`
-		Mode      string                   `json:"mode"`
-		ChunkSize int64                    `json:"chunk_size"`
-		Parallel  int                      `json:"parallel"`
+		Name           string                   `json:"name"`
+		Source         plugin.ConnectionConfig  `json:"source"`
+		Target         plugin.ConnectionConfig  `json:"target"`
+		Filter         plugin.TableFilter       `json:"filter"`
+		Mode           string                   `json:"mode"`
+		ChunkSize      int64                    `json:"chunk_size"`
+		Parallel       int                      `json:"parallel"`
+		BatchSize      int                      `json:"batch_size"`
+		RateLimit      int                      `json:"rate_limit"`
+		ErrorPolicy    string                   `json:"error_policy"`
+		MigrateObjects task.MigrateObjects      `json:"migrate_objects"`
+		EnableVerify   bool                     `json:"enable_verify"`
+		VerifyMethod   string                   `json:"verify_method"`
+		VerifyChunks   int                      `json:"verify_chunks"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -176,26 +183,31 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t := &task.Task{
-		ID:        generateID(),
-		Name:      input.Name,
-		Status:    task.StatusDraft,
-		Source:    input.Source,
-		Target:    input.Target,
-		Filter:    input.Filter,
-		Mode:      input.Mode,
-		ChunkSize: input.ChunkSize,
-		Parallel:  input.Parallel,
+		ID:             generateID(),
+		Name:           input.Name,
+		Status:         task.StatusDraft,
+		Source:         input.Source,
+		Target:         input.Target,
+		Filter:         input.Filter,
+		Mode:           input.Mode,
+		ChunkSize:      input.ChunkSize,
+		Parallel:       input.Parallel,
+		BatchSize:      input.BatchSize,
+		RateLimit:      input.RateLimit,
+		ErrorPolicy:    input.ErrorPolicy,
+		MigrateObjects: input.MigrateObjects,
+		EnableVerify:   input.EnableVerify,
+		VerifyMethod:   input.VerifyMethod,
+		VerifyChunks:   input.VerifyChunks,
 	}
 
-	if t.ChunkSize == 0 {
-		t.ChunkSize = 50000
-	}
-	if t.Parallel == 0 {
-		t.Parallel = 4
-	}
-	if t.Mode == "" {
-		t.Mode = "full"
-	}
+	if t.ChunkSize == 0 { t.ChunkSize = 10000 }
+	if t.Parallel == 0 { t.Parallel = 4 }
+	if t.BatchSize == 0 { t.BatchSize = 500 }
+	if t.Mode == "" { t.Mode = "schema+full" }
+	if t.ErrorPolicy == "" { t.ErrorPolicy = "abort" }
+	if t.VerifyMethod == "" { t.VerifyMethod = "checksum" }
+	if t.VerifyChunks == 0 { t.VerifyChunks = 100 }
 
 	if err := s.store.Create(t); err != nil {
 		log.Printf("create task error: %v", err)
