@@ -77,10 +77,7 @@ a { color: var(--primary); text-decoration: none; }
 
 .main {
   margin-left: 200px;
-  flex: 1;
-  padding: 28px 40px;
-  max-width: 1200px;
-  margin-right: auto;
+  padding: 32px max(48px, 3vw);
 }
 
 .header {
@@ -190,7 +187,7 @@ a { color: var(--primary); text-decoration: none; }
 }
 .form-group textarea { resize: vertical; min-height: 80px; font-family: 'SF Mono','Fira Code',monospace; font-size: 13px; }
 
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 
 .form-section { margin-bottom: 24px; }
