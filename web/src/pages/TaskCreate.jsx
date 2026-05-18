@@ -48,8 +48,10 @@ export default function TaskCreate() {
   const update = (setter, k, v) => setter(p => ({...p, [k]:v}))
 
   // 解析连接串
-  const [cmdStr, setCmdStr] = useState('')
-  const [showCmd, setShowCmd] = useState(false)
+  const [cmdStrSrc, setCmdStrSrc] = useState('')
+  const [cmdStrTgt, setCmdStrTgt] = useState('')
+  const [showCmdSrc, setShowCmdSrc] = useState(false)
+  const [showCmdTgt, setShowCmdTgt] = useState(false)
 
   function parseConnStr(str) {
     const result = { host:'', port:'', user:'root', password:'', cluster_name:'', tenant_name:'' }
@@ -84,18 +86,15 @@ export default function TaskCreate() {
     return result
   }
 
-  function handleParse() {
-    const r = parseConnStr(cmdStr)
-    setSource(p => ({
-      ...p,
-      host: r.host || p.host,
-      port: parseInt(r.port) || p.port,
-      user: r.user || p.user,
-      password: r.password || p.password,
-      tenant_name: r.tenant_name || p.tenant_name,
-      cluster_name: r.cluster_name || p.cluster_name,
-    }))
-    setCmdStr('')
+  function handleParseSrc() {
+    const r = parseConnStr(cmdStrSrc)
+    setSource(p => ({...p, host:r.host||p.host, port:parseInt(r.port)||p.port, user:r.user||p.user, password:r.password||p.password, tenant_name:r.tenant_name||p.tenant_name, cluster_name:r.cluster_name||p.cluster_name}))
+    setCmdStrSrc('')
+  }
+  function handleParseTgt() {
+    const r = parseConnStr(cmdStrTgt)
+    setTarget(p => ({...p, host:r.host||p.host, port:parseInt(r.port)||p.port, user:r.user||p.user, password:r.password||p.password}))
+    setCmdStrTgt('')
   }
 
   async function handleTest(dir) {
@@ -189,26 +188,6 @@ export default function TaskCreate() {
     <div className="header"><h1>配置连接信息</h1></div>
     <StepBar/>
 
-    <div className="card" style={{background:'var(--primary-light)',border:'1px dashed var(--primary)',padding:'14px 20px'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showCmd?10:0,cursor:'pointer'}} onClick={()=>setShowCmd(!showCmd)}>
-        <span style={{fontSize:14,fontWeight:600,color:'var(--primary)'}}>📋 粘贴连接命令（快速填写）</span>
-        <span style={{fontSize:12,color:'var(--text-dim)'}}>{showCmd ? '收起 ▲' : '展开 ▼'}</span>
-      </div>
-      {showCmd && (
-        <div>
-          <div className="help-text" style={{marginBottom:8}}>支持 mysql / obclient 命令行格式，自动解析地址、端口、账号、密码、集群、租户</div>
-          <div style={{display:'flex',gap:8}}>
-            <input value={cmdStr} onChange={e=>setCmdStr(e.target.value)} 
-              placeholder='mysql -h10.10.180.227 -P2883 -uroot@yyhtenant#obcp -pDBA@#1234 -A'
-              style={{flex:1,fontFamily:'SF Mono,monospace',fontSize:12}}/>
-            <button className="btn btn-primary" onClick={handleParse} disabled={!cmdStr.trim()} style={{whiteSpace:'nowrap'}}>
-              🔍 解析
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-
     <div className="form-row">
 
       <div className="card" style={{flex:1}}>
@@ -218,6 +197,22 @@ export default function TaskCreate() {
             {testingSrc?'测试中...':'🔗 测试连接'}
           </button>
         </div>
+
+        {/* 源端解析连接串 */}
+        <div style={{background:'var(--primary-light)',border:'1px dashed var(--primary)',borderRadius:6,padding:'10px 14px',marginBottom:16}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showCmdSrc?8:0,cursor:'pointer',fontSize:12}} onClick={()=>setShowCmdSrc(!showCmdSrc)}>
+            <span style={{fontWeight:600,color:'var(--primary)'}}>📋 粘贴命令解析 {showCmdSrc ? '▲' : '▼'}</span>
+          </div>
+          {showCmdSrc && (
+            <div style={{display:'flex',gap:6}}>
+              <input value={cmdStrSrc} onChange={e=>setCmdStrSrc(e.target.value)} 
+                placeholder='mysql -h10.10.180.227 -P2883 -uroot@yyhtenant#obcp -pDBA@#1234'
+                style={{flex:1,fontFamily:'SF Mono,monospace',fontSize:11,padding:'6px 8px'}}/>
+              <button className="btn btn-primary btn-sm" onClick={handleParseSrc} disabled={!cmdStrSrc.trim()}>解析</button>
+            </div>
+          )}
+        </div>
+
         <div className="form-group"><label>IP 地址</label><input placeholder="10.10.180.227" value={source.host} onChange={e=>update(setSource,'host',e.target.value)}/></div>
         <div className="form-group"><label>端口</label><input type="number" value={source.port} onChange={e=>update(setSource,'port',parseInt(e.target.value)||2883)}/></div>
         <div className="form-row">
@@ -244,6 +239,22 @@ export default function TaskCreate() {
             {testingTgt?'测试中...':'🔗 测试连接'}
           </button>
         </div>
+
+        {/* 目标端解析连接串 */}
+        <div style={{background:'var(--success-light)',border:'1px dashed var(--success)',borderRadius:6,padding:'10px 14px',marginBottom:16}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showCmdTgt?8:0,cursor:'pointer',fontSize:12}} onClick={()=>setShowCmdTgt(!showCmdTgt)}>
+            <span style={{fontWeight:600,color:'var(--success)'}}>📋 粘贴命令解析 {showCmdTgt ? '▲' : '▼'}</span>
+          </div>
+          {showCmdTgt && (
+            <div style={{display:'flex',gap:6}}>
+              <input value={cmdStrTgt} onChange={e=>setCmdStrTgt(e.target.value)} 
+                placeholder='mysql -h10.10.180.142 -P4886 -uroot -pDBAdba@#123'
+                style={{flex:1,fontFamily:'SF Mono,monospace',fontSize:11,padding:'6px 8px'}}/>
+              <button className="btn btn-primary btn-sm" onClick={handleParseTgt} disabled={!cmdStrTgt.trim()}>解析</button>
+            </div>
+          )}
+        </div>
+
         <div className="form-group"><label>IP 地址</label><input placeholder="10.10.180.142" value={target.host} onChange={e=>update(setTarget,'host',e.target.value)}/></div>
         <div className="form-group"><label>端口</label><input type="number" value={target.port} onChange={e=>update(setTarget,'port',parseInt(e.target.value)||4886)}/></div>
         <div className="form-group"><label>账号</label><input placeholder="root" value={target.user} onChange={e=>update(setTarget,'user',e.target.value)}/></div>
