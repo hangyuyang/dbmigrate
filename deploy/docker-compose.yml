@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  server:
+    image: dbmigrate-server:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    ports:
+      - "8080:8080"
+    volumes:
+      - data:/data
+    environment:
+      - DATA_DIR=/data
+    restart: unless-stopped
+
+  worker:
+    image: dbmigrate-worker:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    volumes:
+      - data:/data
+    environment:
+      - SERVER_ADDR=server:8080
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  data:
