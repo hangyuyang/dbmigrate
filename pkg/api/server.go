@@ -113,6 +113,7 @@ func (s *Server) registerRoutes() {
 
 	// Schema
 	api.HandleFunc("/schema/preview", s.handleSchemaPreview).Methods("POST")
+	api.HandleFunc("/schema/discover", s.handleSchemaDiscover).Methods("POST")
 }
 
 // ListenAndServe 启动服务
@@ -359,6 +360,80 @@ func (s *Server) handleTaskProgress(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSchemaPreview(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotImplemented, "not implemented")
+}
+
+func (s *Server) handleSchemaDiscover(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Source plugin.ConnectionConfig `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	// Build connection
+	user := input.Source.User
+	if input.Source.ClusterName != "" && input.Source.TenantName != "" && (user == "" || user == "root") {
+		user = fmt.Sprintf("root@%s#%s", input.Source.TenantName, input.Source.ClusterName)
+	}
+
+	cfg := mysql.NewConfig()
+	cfg.User = user
+	cfg.Passwd = input.Source.Password
+	cfg.Net = "tcp"
+	cfg.Addr = fmt.Sprintf("%s:%d", input.Source.Host, input.Source.Port)
+	cfg.Timeout = 10 * time.Second
+	cfg.TLS = &tls.Config{InsecureSkipVerify: true}
+
+	db, err := sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	// Get databases (schemas)
+	rows, err := db.QueryContext(ctx, "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN ('mysql','information_schema','oceanbase','LBACSYS','ORAAUDITOR','performance_schema','sys','__recycle_bin__') ORDER BY SCHEMA_NAME")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	type TableInfo struct {
+		Name    string `json:"name"`
+		Rows    int64  `json:"rows"`
+	}
+	type SchemaInfo struct {
+		Name   string      `json:"name"`
+		Tables []TableInfo `json:"tables"`
+	}
+
+	var schemas []SchemaInfo
+	for rows.Next() {
+		var schemaName string
+		rows.Scan(&schemaName)
+
+		// Get tables for this schema
+		schema := SchemaInfo{Name: schemaName}
+		tRows, err := db.QueryContext(ctx,
+			"SELECT TABLE_NAME, TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME",
+			schemaName)
+		if err == nil {
+			for tRows.Next() {
+				var t TableInfo
+				tRows.Scan(&t.Name, &t.Rows)
+				schema.Tables = append(schema.Tables, t)
+			}
+			tRows.Close()
+		}
+		schemas = append(schemas, schema)
+	}
+
+	json.NewEncoder(w).Encode(schemas)
 }
 
 func writeError(w http.ResponseWriter, code int, msg string) {

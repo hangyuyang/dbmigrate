@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createTask, testConnection } from '../api/client'
+import { createTask, testConnection, discoverSchema } from '../api/client'
 
 const STEPS = ['选择数据库', '连接配置', '迁移阶段', '迁移对象', '性能配置']
 
@@ -44,6 +44,51 @@ export default function TaskCreate() {
   const [chunkSize, setChunkSize] = useState(10000)
   const [batchSize, setBatchSize] = useState(500)
   const [errorPolicy, setErrorPolicy] = useState('abort')
+
+  // Step 4: schema tree
+  const [schemaTree, setSchemaTree] = useState([])
+  const [loadingSchema, setLoadingSchema] = useState(false)
+  const [expandedSchemas, setExpandedSchemas] = useState({})
+  const [selectedTables, setSelectedTables] = useState({})
+
+  useEffect(() => {
+    if (step === 3 && source.port > 0 && source.host && source.password) {
+      setLoadingSchema(true)
+      const cfg = {...source, type: srcType}
+      if (cfg.cluster_name && cfg.tenant_name) cfg.user = `root@${cfg.tenant_name}#${cfg.cluster_name}`
+      discoverSchema(cfg).then(r => {
+        setSchemaTree(Array.isArray(r) ? r : [])
+        setLoadingSchema(false)
+      }).catch(() => setLoadingSchema(false))
+    }
+  }, [step])
+
+  function toggleSchema(schemaName) {
+    setExpandedSchemas(p => ({...p, [schemaName]: !p[schemaName]}))
+  }
+
+  function toggleTable(schemaName, tableName) {
+    setSelectedTables(p => {
+      const key = `${schemaName}.${tableName}`
+      const next = {...p}
+      if (next[key]) { delete next[key] }
+      else { next[key] = true }
+      return next
+    })
+  }
+
+  function toggleAllTables(schemaName, tables) {
+    setSelectedTables(p => {
+      const allSelected = tables.every(t => p[`${schemaName}.${t.name}`])
+      const next = {...p}
+      tables.forEach(t => {
+        const key = `${schemaName}.${t.name}`
+        if (allSelected) delete next[key]
+        else next[key] = true
+      })
+      return next
+    })
+  }
 
   const update = (setter, k, v) => setter(p => ({...p, [k]:v}))
 
@@ -306,22 +351,55 @@ export default function TaskCreate() {
   </>
 
   // ============ STEP 4 ============
-  if (step === 3) return <>
+  if (step === 3) {
+    const tableCount = Object.keys(selectedTables).length
+    return <>
     <div className="header"><h1>选择迁移对象</h1></div>
     <StepBar/>
+
     <div className="card">
-      <div className="card-header">目标数据库</div>
-      <div className="form-group">
-        <select value={selectedDB} onChange={e=>setSelectedDB(e.target.value)} style={{fontSize:14,padding:'10px 12px'}}>
-          <option value="">请选择目标数据库</option>
-          <option value="yyhdb">yyhdb</option>
-          <option value="shou">shou</option>
-          <option value="db1">db1</option>
-        </select>
-        <div className="help-text">选择 PolarDB-X 中已有的数据库，或输入新库名</div>
-        <input style={{marginTop:8}} value={selectedDB} onChange={e=>setSelectedDB(e.target.value)} placeholder="或手动输入数据库名"/>
+      <div className="card-header">
+        <span>源端数据库 / 表</span>
+        <span style={{fontSize:12,color:'var(--text-dim)'}}>已选 {tableCount} 张表</span>
       </div>
+      {loadingSchema ? (
+        <div style={{textAlign:'center',padding:40}}><div className="spinner" style={{margin:'0 auto'}}/><div style={{marginTop:8,fontSize:13,color:'var(--text-dim)'}}>正在从源端加载...</div></div>
+      ) : (
+        <div style={{maxHeight:420,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6}}>
+          {schemaTree.map(schema => {
+            const tables = schema.tables || []
+            const allSelected = tables.length > 0 && tables.every(t => selectedTables[`${schema.name}.${t.name}`])
+            return (
+              <div key={schema.name}>
+                <div onClick={()=>toggleSchema(schema.name)} style={{
+                  display:'flex',alignItems:'center',gap:8,padding:'10px 14px',cursor:'pointer',fontWeight:600,fontSize:14,
+                  background:'#f8fafc',borderBottom:'1px solid var(--border)',
+                  userSelect:'none'
+                }}>
+                  <span style={{fontSize:12}}>{expandedSchemas[schema.name] ? '▼' : '▶'}</span>
+                  <input type="checkbox" checked={allSelected} onChange={e=>{e.stopPropagation();toggleAllTables(schema.name,tables)}} style={{width:16,height:16}}/>
+                  <span>📁 {schema.name}</span>
+                  <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:'auto'}}>{tables.length} 表</span>
+                </div>
+                {expandedSchemas[schema.name] && tables.map(table => (
+                  <div key={table.name} onClick={()=>toggleTable(schema.name,table.name)} style={{
+                    display:'flex',alignItems:'center',gap:8,padding:'8px 14px 8px 44px',cursor:'pointer',fontSize:13,
+                    background:selectedTables[`${schema.name}.${table.name}`]?'var(--primary-light)':'white',
+                    borderBottom:'1px solid #f1f5f9',
+                    userSelect:'none'
+                  }}>
+                    <input type="checkbox" checked={!!selectedTables[`${schema.name}.${table.name}`]} onChange={()=>{}} style={{width:14,height:14}}/>
+                    <span>📊 {table.name}</span>
+                    <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:'auto'}}>{table.rows > 0 ? `${(table.rows/1000).toFixed(1)}K 行` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
+
     <div className="card">
       <div className="card-header">迁移对象类型</div>
       <div style={{display:'flex',gap:12}}>
@@ -334,18 +412,14 @@ export default function TaskCreate() {
         ))}
       </div>
     </div>
-    <div className="card">
-      <div className="card-header">表过滤（可选）</div>
-      <div className="form-row">
-        <div className="form-group"><label>包含表</label><textarea value={includeTables} onChange={e=>setIncludeTables(e.target.value)} placeholder="逗号分隔表名，留空表示全部" rows={3}/></div>
-        <div className="form-group"><label>排除表</label><textarea value={excludeTables} onChange={e=>setExcludeTables(e.target.value)} placeholder="逗号分隔表名" rows={3}/></div>
-      </div>
-    </div>
+
     <div style={{display:'flex',justifyContent:'flex-end',marginTop:8,gap:8}}>
       <button className="btn btn-outline" onClick={()=>setStep(2)}>←</button>
       <button className="btn btn-primary" onClick={()=>setStep(4)}>下一步 →</button>
     </div>
   </>
+
+  }
 
   // ============ STEP 5 ============
   return <>

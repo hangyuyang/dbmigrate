@@ -73,3 +73,10 @@ export function previewSchema(data) {
     body: JSON.stringify(data),
   });
 }
+
+export function discoverSchema(sourceConfig) {
+  return request('/schema/discover', {
+    method: 'POST',
+    body: JSON.stringify({ source: sourceConfig }),
+  });
+}
