@@ -39,4 +39,7 @@ type TargetPlugin interface {
 
 	// PreCheck 迁移前检查
 	PreCheck(ctx context.Context, tables []TableMetadata) ([]PreCheckWarning, error)
+
+	// Count 统计行数
+	Count(ctx context.Context, schema, table string) int64
 }

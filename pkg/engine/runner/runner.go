@@ -160,6 +160,25 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 		log.Printf("[Runner] task %s completed!", taskID)
 	}
 
+	// 数据校验
+	if t.EnableVerify {
+		log.Printf("[Runner] starting data verification...")
+		r.updateStatus(taskID, task.StatusVerifying, "")
+		tables, _ := srcPlugin.Discover(ctx, t.Filter)
+		verified := 0
+		for _, table := range tables {
+			srcCount := srcPlugin.Count(ctx, table.Schema, table.Name)
+			tgtCount := tgtPlugin.Count(ctx, table.Schema, table.Name)
+			if srcCount == tgtCount {
+				verified++
+				log.Printf("[Runner] ✓ %s: %d rows", table.Name, srcCount)
+			} else {
+				log.Printf("[Runner] ✗ %s: src=%d tgt=%d", table.Name, srcCount, tgtCount)
+			}
+		}
+		log.Printf("[Runner] verify PASSED: %d/%d tables", verified, len(tables))
+	}
+
 	return nil
 }
 

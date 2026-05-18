@@ -274,3 +274,12 @@ func (s *Source) CurrentPosition(ctx context.Context) (plugin.Position, error) {
 	}
 	return plugin.Position{Name: file, Pos: pos}, nil
 }
+
+func (s *Source) Count(ctx context.Context, schema, table string) int64 {
+	var count int64
+	err := s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", schema, table)).Scan(&count)
+	if err != nil {
+		return 0
+	}
+	return count
+}

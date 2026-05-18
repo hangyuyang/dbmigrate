@@ -216,6 +216,15 @@ func (t *Target) GetChecksum(ctx context.Context, table, pkCol, min, max string)
 	return "0", nil
 }
 
+func (t *Target) Count(ctx context.Context, schema, table string) int64 {
+	var count int64
+	err := t.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", schema, table)).Scan(&count)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
 func (t *Target) PreCheck(ctx context.Context, tables []plugin.TableMetadata) ([]plugin.PreCheckWarning, error) {
 	var warnings []plugin.PreCheckWarning
 	for _, tbl := range tables {

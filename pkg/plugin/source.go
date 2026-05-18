@@ -36,4 +36,7 @@ type SourcePlugin interface {
 
 	// CurrentPosition 获取当前 CDC 位置
 	CurrentPosition(ctx context.Context) (Position, error)
+
+	// Count 统计行数
+	Count(ctx context.Context, schema, table string) int64
 }
