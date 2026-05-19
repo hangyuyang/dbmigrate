@@ -78,6 +78,7 @@ export default function TaskCreate() {
 
   // Step 4 checkbox state for batch delete
   const [checkedItems, setCheckedItems] = useState({})
+  const [expandedTargetSchemas, setExpandedTargetSchemas] = useState({})
   const clearChecked = () => setCheckedItems({})
   const toggleCheckedItem = (idx) => setCheckedItems(p=>{const n={...p};if(n[idx])delete n[idx];else n[idx]=true;return n})
   const toggleAllChecked = (indices) => setCheckedItems(p=>{const all=indices.every(i=>p[i]);const n={...p};indices.forEach(i=>all?delete n[i]:n[i]=true);return n})
@@ -618,17 +619,20 @@ export default function TaskCreate() {
                 return (
                   <div key={schemaName}>
                     {/* Schema header */}
-                    <div style={{
-                      display:'flex',alignItems:'center',gap:6,padding:'8px 14px',fontSize:13,fontWeight:600,
-                      background:'#f0fdf4',borderBottom:'1px solid #dcfce7',userSelect:'none'
-                    }}>
-                      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3.5 1.5l4 3.5-4 3.5" stroke="#16a34a" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+                    <div onClick={()=>setExpandedTargetSchemas(p=>({...p,[schemaName]:!p[schemaName]}))} style={{
+                    display:'flex',alignItems:'center',gap:6,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,
+                    background:'#f0fdf4',borderBottom:'1px solid #dcfce7',userSelect:'none'
+                  }}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" style={{transform:expandedTargetSchemas[schemaName]?'rotate(90deg)':'rotate(0deg)',transition:'transform .15s',flexShrink:0}}>
+                      <path d="M3.5 1.5l4 3.5-4 3.5" stroke="#16a34a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                    </svg>
                       <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3.5" rx="5.5" ry="1.8" stroke="#16a34a" strokeWidth="1.2"/><path d="M2.5 3.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#16a34a" strokeWidth="1.2" fill="none"/></svg>
                       {renameItem === `schema_${schemaIdx}` ? (
-                        <input autoFocus value={schemaName} onChange={e=>{
-                          const newName = e.target.value
+                        <input autoFocus defaultValue={schemaName} onBlur={e=>{
+                          const newName = e.target.value || schemaName
                           setSelectedItems(prev => prev.map(i=>(i.targetSchema||i.schema)===schemaName?{...i,targetSchema:newName}:i))
-                        }} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)}
+                          setRenameItem(null)
+                        }} onKeyDown={e=>{if(e.key==='Enter'){e.target.blur()}}}
                           style={{flex:1,padding:'2px 5px',fontSize:12,border:'1px solid var(--primary)',borderRadius:3,outline:'none'}}/>
                       ) : (
                         <span style={{flex:1}}>{schemaName}</span>
@@ -636,6 +640,7 @@ export default function TaskCreate() {
                       <button className="btn btn-outline btn-sm" onClick={()=>setRenameItem(`schema_${schemaIdx}`)} style={{padding:'0 5px',fontSize:9,lineHeight:'18px',flexShrink:0}}>✎</button>
                       <span style={{fontSize:11,color:'var(--text-dim)'}}>表 {items.length}</span>
                     </div>
+                    {expandedTargetSchemas[schemaName] !== false && <>
                     {/* Category: 表 — with select-all and individual checkboxes */}
                     <CatRow label="表" count={items.length} allSelected={allChecked} someSelected={someChecked}
                       onToggleAll={()=>toggleAllChecked(itemIndices)}>
@@ -657,20 +662,13 @@ export default function TaskCreate() {
                         )
                       })}
                     </CatRow>
+                    </>}
                   </div>
                 )
               })
             })()}
           </div>
         )}
-      </div>
-    </div>
-
-    <div className="card">
-      <div className="card-header">目标数据库</div>
-      <div className="form-group">
-        <input value={selectedDB} onChange={e=>setSelectedDB(e.target.value)} placeholder="输入目标数据库名，如 yyhdb（不存在自动创建）"/>
-        <div className="help-text">数据将迁移到此数据库中，若不存在自动创建</div>
       </div>
     </div>
 
