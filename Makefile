@@ -1,4 +1,4 @@
-.PHONY: build test deploy clean
+.PHONY: build test deploy clean docker-build docker-push docker-run
 
 # ── Build ──
 build: build-go build-web
@@ -11,6 +11,18 @@ build-web:
 
 build-all: build-go build-web
 	@echo "Build complete: bin/dbmigrate-server-linux + web/dist/"
+
+# ── Docker ──
+DOCKER_IMAGE = ghcr.io/hangyuyang/dbmigrate
+
+docker-build:
+	docker build -t $(DOCKER_IMAGE):latest .
+
+docker-run:
+	docker run -d --name dbmigrate -p 9090:8080 -v $$(pwd)/data:/opt/dbmigrate/data $(DOCKER_IMAGE):latest
+
+docker-push:
+	docker push $(DOCKER_IMAGE):latest
 
 # ── Test ──
 test:

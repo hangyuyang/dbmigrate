@@ -6,27 +6,17 @@
 
 ## 快速部署（Docker）
 
-### 1. 构建镜像
-
 ```bash
-docker build -t dbmigrate:latest -f deploy/Dockerfile .
+# 一行启动
+docker run -d --name dbmigrate -p 9090:8080 \
+  -v dbmigrate-data:/opt/dbmigrate/data \
+  ghcr.io/hangyuyang/dbmigrate:latest
+
+# 打开 Web UI
+open http://localhost:9090
 ```
 
-### 2. 启动容器
-
-```bash
-docker run -d \
-  --name dbmigrate \
-  -p 8080:8080 \
-  -v dbmigrate-data:/data \
-  dbmigrate:latest
-```
-
-### 3. 打开 Web UI
-
-```
-http://<服务器IP>:8080
-```
+访问 http://localhost:9090 即可使用。端口 `9090` 可换成任意端口。
 
 ---
 
