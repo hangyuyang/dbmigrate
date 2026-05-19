@@ -1,5 +1,7 @@
 # DBMigrate — 异构数据库迁移工具
 
+[![CI](https://github.com/hangyuyang/dbmigrate/actions/workflows/ci.yml/badge.svg)](https://github.com/hangyuyang/dbmigrate/actions)
+
 插件化数据库迁移平台，支持全量/增量/对象迁移。
 
 ## 快速部署（Docker）

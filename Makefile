@@ -1,34 +1,33 @@
-APP_NAME = dbmigrate
-GO = go
-GOFLAGS = -ldflags="-s -w"
+.PHONY: build test deploy clean
 
-.PHONY: all build server worker cli test clean
+# ── Build ──
+build: build-go build-web
 
-all: build
+build-go:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/dbmigrate-server-linux ./cmd/server
 
-build: server worker cli
+build-web:
+	cd web && npm run build
 
-server:
-	$(GO) build $(GOFLAGS) -o bin/dbmigrate-server ./cmd/server
+build-all: build-go build-web
+	@echo "Build complete: bin/dbmigrate-server-linux + web/dist/"
 
-worker:
-	$(GO) build $(GOFLAGS) -o bin/dbmigrate-worker ./cmd/worker
-
-cli:
-	$(GO) build $(GOFLAGS) -o bin/dbmigrate ./cmd/cli
-
+# ── Test ──
 test:
-	$(GO) test ./...
+	@echo "=== Unit tests ==="
+	go vet ./...
+	@echo "=== Integration (needs internal servers) ==="
+	bash testcases/regression_suite.sh
 
+test-quick:
+	go build ./...
+
+# ── Deploy ──
+deploy: build-all
+	tar czf /tmp/dbmigrate-latest.tar.gz bin/dbmigrate-server-linux web/dist/
+	sshpass -p 'dba@123' scp -o StrictHostKeyChecking=no /tmp/dbmigrate-latest.tar.gz root@10.10.180.219:/tmp/
+	sshpass -p 'dba@123' ssh -o StrictHostKeyChecking=no root@10.10.180.219 'bash /opt/dbmigrate/start.sh'
+
+# ── Clean ──
 clean:
-	rm -rf bin/
-
-docker-build:
-	docker build -t dbmigrate-server -f deploy/Dockerfile.server .
-	docker build -t dbmigrate-worker -f deploy/Dockerfile.worker .
-
-docker-up:
-	docker compose -f deploy/docker-compose.yml up -d
-
-docker-down:
-	docker compose -f deploy/docker-compose.yml down
+	rm -rf bin/ web/dist/
