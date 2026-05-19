@@ -75,6 +75,12 @@ export default function TaskCreate() {
   const [selectMode, setSelectMode] = useState('specific') // 'specific' or 'pattern'
   const [selectedItems, setSelectedItems] = useState([]) // [{schema, table, targetName}]
   const [renameItem, setRenameItem] = useState(null)
+
+  // Step 4 checkbox state for batch delete
+  const [checkedItems, setCheckedItems] = useState({})
+  const clearChecked = () => setCheckedItems({})
+  const toggleCheckedItem = (idx) => setCheckedItems(p=>{const n={...p};if(n[idx])delete n[idx];else n[idx]=true;return n})
+  const toggleAllChecked = (indices) => setCheckedItems(p=>{const all=indices.every(i=>p[i]);const n={...p};indices.forEach(i=>all?delete n[i]:n[i]=true);return n})
   const [patternInclude, setPatternInclude] = useState('')
   const [patternExclude, setPatternExclude] = useState('')
 
@@ -487,10 +493,6 @@ export default function TaskCreate() {
   // ============ STEP 4: 对象选择 ============
   if (step === 3) {
     const checkedCount = Object.keys(selectedTables).length
-    const [checkedItems, setCheckedItems] = useState({})
-    const clearChecked = () => setCheckedItems({})
-    const toggleCheckedItem = (idx) => setCheckedItems(p=>{const n={...p};if(n[idx])delete n[idx];else n[idx]=true;return n})
-    const toggleAllChecked = (indices) => setCheckedItems(p=>{const all=indices.every(i=>p[i]);const n={...p};indices.forEach(i=>all?delete n[i]:n[i]=true);return n})
     const checkedCount2 = Object.keys(checkedItems).length
     return <>
     <div className="header"><h1>对象选择</h1></div>
