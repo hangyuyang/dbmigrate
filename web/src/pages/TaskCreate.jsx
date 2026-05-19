@@ -1,4 +1,17 @@
 import { useState, useEffect } from 'react'
+
+function CategoryHeader({label, count, defaultOpen, children}) {
+  const [open, setOpen] = useState(defaultOpen !== false)
+  return <>
+    <div onClick={()=>setOpen(!open)} style={{padding:'4px 14px 2px 28px',fontSize:11,color:count>0?'var(--text-dim)':'#cbd5e1',fontWeight:600,display:'flex',alignItems:'center',gap:6,cursor:'pointer',userSelect:'none'}}>
+      <svg width="8" height="8" viewBox="0 0 8 8" style={{transform:open?'rotate(90deg)':'rotate(0deg)',transition:'transform .15s',flexShrink:0}}>
+        <path d="M3 1l3 3-3 3" stroke={count>0?'#94a3b8':'#cbd5e1'} strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      </svg>
+      <span>{label} ({count})</span>
+    </div>
+    {open && children}
+  </>
+}
 import { useNavigate } from 'react-router-dom'
 import { createTask, testConnection, discoverSchema } from '../api/client'
 
@@ -203,7 +216,7 @@ export default function TaskCreate() {
       if (schemaList.length > 0) src.database = schemaList[0]
 
       const mode = [migrateSchema&&'schema',migrateFull&&'full',migrateCDC&&'cdc'].filter(Boolean).join('+')
-      await createTask({
+      const created = await createTask({
         name: taskName || 'OB → PDB-X',
         mode, source: src, target: tgt,
         filter: { include_tables: [], exclude_tables: [], include_schemas: schemaList },
@@ -211,7 +224,9 @@ export default function TaskCreate() {
         chunk_size: chunkSize, parallel, batch_size: batchSize,
         error_policy: errorPolicy, enable_verify: enableVerify, verify_method: 'checksum',
       })
-      navigate('/')
+      // Auto-start the task
+      await fetch(`/api/v1/tasks/${created.id}/start`, {method:'POST'})
+      navigate(`/tasks/${created.id}`)
     } catch(e) { alert('创建失败: '+e.message) }
     finally { setSubmitting(false) }
   }
@@ -467,11 +482,11 @@ export default function TaskCreate() {
     <StepBar/>
 
     <div style={{display:'flex',gap:12,alignItems:'stretch'}}>
-      {/* ===== LEFT: Source Tree ===== */}
+      {/* ===== LEFT ===== */}
       <div className="card" style={{flex:1,display:'flex',flexDirection:'column'}}>
-        <div className="card-header" style={{fontSize:13,color:'var(--text)',borderBottom:'1px solid var(--border)',padding:'10px 14px',flexShrink:0}}>
+        <div className="card-header" style={{fontSize:13,borderBottom:'1px solid var(--border)',padding:'10px 14px',flexShrink:0}}>
           <span style={{display:'flex',alignItems:'center',gap:6}}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="1" stroke="#64748b" strokeWidth="1.5"/><path d="M1 5h14" stroke="#64748b" strokeWidth="1.5"/></svg>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3" rx="6" ry="2" stroke="#64748b" strokeWidth="1.3"/><path d="M2 3v4c0 1.1 2.7 2 6 2s6-.9 6-2V3" stroke="#64748b" strokeWidth="1.3" fill="none"/><path d="M2 7v4c0 1.1 2.7 2 6 2s6-.9 6-2V7" stroke="#64748b" strokeWidth="1.3" fill="none"/></svg>
             源端对象
           </span>
           <span style={{fontSize:11,color:'var(--text-dim)'}}>{checkedCount} 已选</span>
@@ -487,43 +502,53 @@ export default function TaskCreate() {
               const someSelected = selCount > 0 && !allSelected
               return (
                 <div key={schema.name}>
-                  {/* Schema header */}
+                  {/* Schema */}
                   <div onClick={()=>toggleSchema(schema.name)} style={{
                     display:'flex',alignItems:'center',gap:6,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,
                     background:'#fafbfc',borderBottom:'1px solid #eef2f7',userSelect:'none'
                   }}>
                     <svg width="10" height="10" viewBox="0 0 10 10" style={{transform:expandedSchemas[schema.name]?'rotate(90deg)':'rotate(0deg)',transition:'transform .15s',flexShrink:0}}>
-                      <path d="M3.5 1.5l4 3.5-4 3.5" stroke="#94a3b8" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M3.5 1.5l4 3.5-4 3.5" stroke="#94a3b8" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
                     </svg>
-                    <input type="checkbox" checked={allSelected} ref={el=>{if(el)el.indeterminate=someSelected}} onChange={e=>{e.stopPropagation();toggleAllTables(schema.name,tables)}} 
+                    <input type="checkbox" checked={allSelected} ref={el=>{if(el)el.indeterminate=someSelected}} onChange={e=>{e.stopPropagation();toggleAllTables(schema.name,tables)}}
                       style={{width:14,height:14,accentColor:'var(--primary)',flexShrink:0}}/>
-                    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{flexShrink:0}}>
-                      <path d="M2 3.5h10v8a1 1 0 01-1 1H3a1 1 0 01-1-1v-8z" fill="#fcd34d" stroke="#d97706" strokeWidth="0.8"/>
-                      <rect x="1" y="1.5" width="12" height="2" rx="0.5" fill="#fef3c7" stroke="#d97706" strokeWidth="0.5"/>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
+                      <ellipse cx="8" cy="3.5" rx="5.5" ry="1.8" stroke="#d97706" strokeWidth="1.2"/>
+                      <path d="M2.5 3.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#d97706" strokeWidth="1.2" fill="none"/>
+                      <path d="M2.5 7.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#d97706" strokeWidth="1.2" fill="none"/>
                     </svg>
                     <span style={{flex:1}}>{schema.name}</span>
-                    <span style={{fontSize:11,color:'var(--text-dim)'}}>表 {tables.length}</span>
+                    <span style={{fontSize:11,color:'var(--text-dim)'}}>{tables.length} 表</span>
                   </div>
-                  {/* Tables list */}
                   {expandedSchemas[schema.name] && (
                     <div>
-                      <div style={{padding:'4px 14px 2px 40px',fontSize:11,color:'var(--text-dim)',fontWeight:600,display:'flex',alignItems:'center',gap:6}}>
-                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="1.5" width="10" height="9" rx="1" stroke="#94a3b8" strokeWidth="1"/></svg>
-                        表 ({tables.length})
+                      {/* Category: 表 */}
+                      <CategoryHeader label="表" count={tables.length} defaultOpen={true}>
+                        {tables.map(table => {
+                          const sel = !!selectedTables[`${schema.name}.${table.name}`]
+                          return (
+                            <div key={table.name} onClick={()=>toggleTable(schema.name,table.name)} style={{
+                              display:'flex',alignItems:'center',gap:6,padding:'4px 14px 4px 46px',cursor:'pointer',fontSize:12,
+                              background:sel?'var(--primary-light)':'white',borderBottom:'1px solid #f8fafc',userSelect:'none'
+                            }}>
+                              <input type="checkbox" checked={sel} onChange={()=>{}} style={{width:13,height:13,accentColor:'var(--primary)',flexShrink:0}}/>
+                              <span style={{flex:1}}>{table.name}</span>
+                              <span style={{fontSize:10,color:'var(--text-dim)'}}>{table.rows>0?`${(table.rows/1000).toFixed(1)}k`:''}</span>
+                            </div>
+                          )
+                        })}
+                      </CategoryHeader>
+                      {/* Empty categories for future: 视图, 存储过程 */}
+                      <div style={{padding:'4px 14px 2px 28px',fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:6}}>
+                        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3.5 1.5l4 3.5-4 3.5" stroke="#cbd5e1" strokeWidth="1.2" fill="none"/></svg>
+                        <svg width="10" height="10" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" stroke="#cbd5e1" strokeWidth="1"/></svg>
+                        视图 (0)
                       </div>
-                      {tables.map(table => {
-                        const sel = !!selectedTables[`${schema.name}.${table.name}`]
-                        return (
-                          <div key={table.name} onClick={()=>toggleTable(schema.name,table.name)} style={{
-                            display:'flex',alignItems:'center',gap:6,padding:'5px 14px 5px 40px',cursor:'pointer',fontSize:12,
-                            background:sel?'var(--primary-light)':'white',borderBottom:'1px solid #f8fafc',userSelect:'none'
-                          }}>
-                            <input type="checkbox" checked={sel} onChange={()=>{}} style={{width:13,height:13,accentColor:'var(--primary)',flexShrink:0}}/>
-                            <span style={{flex:1}}>{table.name}</span>
-                            <span style={{fontSize:10,color:'var(--text-dim)'}}>{table.rows>0?`${(table.rows/1000).toFixed(1)}k`:''}</span>
-                          </div>
-                        )
-                      })}
+                      <div style={{padding:'4px 14px 2px 28px',fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:6}}>
+                        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3.5 1.5l4 3.5-4 3.5" stroke="#cbd5e1" strokeWidth="1.2" fill="none"/></svg>
+                        <svg width="10" height="10" viewBox="0 0 12 12"><rect x="2" y="3" width="8" height="6" rx="1" stroke="#cbd5e1" strokeWidth="1"/><text x="4" y="8" fontSize="5" fill="#cbd5e1">fn</text></svg>
+                        函数 (0)
+                      </div>
                     </div>
                   )}
                 </div>
@@ -533,8 +558,8 @@ export default function TaskCreate() {
         )}
       </div>
 
-      {/* ===== CENTER: Transfer buttons ===== */}
-      <div style={{display:'flex',flexDirection:'column',justifyContent:'center',gap:8,flexShrink:0,width:36}}>
+      {/* ===== CENTER ===== */}
+      <div style={{display:'flex',flexDirection:'column',justifyContent:'center',gap:8,flexShrink:0,width:34}}>
         <button className="btn btn-primary" onClick={()=>{
           const toAdd = []
           schemaTree.forEach(schema => {
@@ -546,18 +571,13 @@ export default function TaskCreate() {
           })
           setSelectedItems(prev => [...prev, ...toAdd])
         }} style={{width:34,height:34,borderRadius:17,padding:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,lineHeight:1}} title="添加所选">›</button>
-        <button className="btn btn-outline" onClick={()=>{
-          const keep = new Set()
-          schemaTree.forEach(s=>{(s.tables||[]).forEach(t=>{if(selectedTables[`${s.name}.${t.name}`])keep.add(`${s.name}.${t.name}`)})})
-          setSelectedItems(prev => prev.filter(i => keep.has(`${i.schema}.${i.table}`)))
-        }} style={{width:28,height:28,borderRadius:14,padding:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13}} title="同步选中">↻</button>
       </div>
 
-      {/* ===== RIGHT: Target Objects ===== */}
+      {/* ===== RIGHT ===== */}
       <div className="card" style={{flex:1,display:'flex',flexDirection:'column'}}>
-        <div className="card-header" style={{fontSize:13,color:'var(--text)',borderBottom:'1px solid var(--border)',padding:'10px 14px',flexShrink:0}}>
+        <div className="card-header" style={{fontSize:13,borderBottom:'1px solid var(--border)',padding:'10px 14px',flexShrink:0}}>
           <span style={{display:'flex',alignItems:'center',gap:6}}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="1" stroke="#16a34a" strokeWidth="1.5"/><path d="M1 5h14" stroke="#16a34a" strokeWidth="1.5"/></svg>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3" rx="6" ry="2" stroke="#16a34a" strokeWidth="1.3"/><path d="M2 3v4c0 1.1 2.7 2 6 2s6-.9 6-2V3" stroke="#16a34a" strokeWidth="1.3" fill="none"/><path d="M2 7v4c0 1.1 2.7 2 6 2s6-.9 6-2V7" stroke="#16a34a" strokeWidth="1.3" fill="none"/></svg>
             已选对象
           </span>
           <span style={{display:'flex',alignItems:'center',gap:8}}>
@@ -568,37 +588,45 @@ export default function TaskCreate() {
         {selectedItems.length === 0 ? (
           <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'var(--text-dim)',fontSize:12,lineHeight:2}}>
             <svg width="32" height="32" viewBox="0 0 40 40" fill="none" style={{opacity:.2,marginBottom:8}}>
-              <rect x="4" y="6" width="32" height="28" rx="2" stroke="#94a3b8" strokeWidth="2"/><path d="M4 12h32" stroke="#94a3b8" strokeWidth="2"/>
+              <ellipse cx="20" cy="9" rx="14" ry="4.5" stroke="#94a3b8" strokeWidth="2"/><path d="M6 9v9c0 2.5 6.3 4.5 14 4.5s14-2 14-4.5V9" stroke="#94a3b8" strokeWidth="2" fill="none"/><path d="M6 18v9c0 2.5 6.3 4.5 14 4.5s14-2 14-4.5v-9" stroke="#94a3b8" strokeWidth="2" fill="none"/>
             </svg>
             <div>在左侧勾选后点击 › 添加</div>
           </div>
         ) : (
           <div style={{flex:1,overflowY:'auto',maxHeight:420}}>
-            {/* Group by schema */}
             {(() => {
               const schemas = [...new Set(selectedItems.map(i=>i.targetSchema||i.schema))]
-              return schemas.map(schemaName => {
+              return schemas.map((schemaName, schemaIdx) => {
                 const items = selectedItems.filter(i=>(i.targetSchema||i.schema)===schemaName)
-                const [editSchema, setEditSchema] = [renameItem, setRenameItem] // reuse renameItem state
                 return (
                   <div key={schemaName}>
+                    {/* Schema header with rename */}
                     <div style={{
                       display:'flex',alignItems:'center',gap:6,padding:'8px 14px',fontSize:13,fontWeight:600,
-                      background:'#f0fdf4',borderBottom:'1px solid #eef2f7',userSelect:'none'
+                      background:'#f0fdf4',borderBottom:'1px solid #dcfce7',userSelect:'none'
                     }}>
                       <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3.5 1.5l4 3.5-4 3.5" stroke="#16a34a" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
-                      <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10v8a1 1 0 01-1 1H3a1 1 0 01-1-1v-8z" fill="#bbf7d0" stroke="#16a34a" strokeWidth="0.8"/><rect x="1" y="1.5" width="12" height="2" rx="0.5" fill="#dcfce7" stroke="#16a34a" strokeWidth="0.5"/></svg>
-                      <span style={{flex:1}}>{schemaName}</span>
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3.5" rx="5.5" ry="1.8" stroke="#16a34a" strokeWidth="1.2"/><path d="M2.5 3.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#16a34a" strokeWidth="1.2" fill="none"/><path d="M2.5 7.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#16a34a" strokeWidth="1.2" fill="none"/></svg>
+                      {renameItem === `schema_${schemaIdx}` ? (
+                        <input autoFocus value={schemaName} onChange={e=>{
+                          const newName = e.target.value
+                          setSelectedItems(prev => prev.map(i=>(i.targetSchema||i.schema)===schemaName?{...i,targetSchema:newName}:i))
+                        }} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)}
+                          style={{flex:1,padding:'2px 5px',fontSize:12,border:'1px solid var(--primary)',borderRadius:3,outline:'none'}}/>
+                      ) : (
+                        <span style={{flex:1}}>{schemaName}</span>
+                      )}
+                      <button className="btn btn-outline btn-sm" onClick={()=>setRenameItem(`schema_${schemaIdx}`)} style={{padding:'0 5px',fontSize:9,lineHeight:'18px',flexShrink:0}}>✎</button>
                       <span style={{fontSize:11,color:'var(--text-dim)'}}>表 {items.length}</span>
                     </div>
-                    <div style={{padding:'2px 14px 2px 40px',fontSize:11,color:'var(--text-dim)',fontWeight:600}}>表</div>
+                    <div style={{padding:'2px 14px 2px 46px',fontSize:11,color:'var(--text-dim)',fontWeight:600}}>表</div>
                     {items.map((item,i) => {
                       const globalIdx = selectedItems.indexOf(item)
                       return (
-                        <div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 14px 5px 40px',fontSize:12,borderBottom:'1px solid #f8fafc'}}>
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 14px 4px 46px',fontSize:12,borderBottom:'1px solid #f8fafc'}}>
                           <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="1.5" width="10" height="9" rx="1" stroke="#16a34a" strokeWidth="1"/></svg>
                           {renameItem === globalIdx ? (
-                            <input autoFocus value={item.targetName} onChange={e=>renameSelected(globalIdx,e.target.value)} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)} 
+                            <input autoFocus value={item.targetName} onChange={e=>renameSelected(globalIdx,e.target.value)} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)}
                               style={{flex:1,padding:'2px 5px',fontSize:11,border:'1px solid var(--primary)',borderRadius:3,outline:'none'}}/>
                           ) : (
                             <span style={{flex:1}}>{item.targetName}</span>
@@ -671,7 +699,7 @@ export default function TaskCreate() {
     <div style={{display:'flex',justifyContent:'flex-end',marginTop:16,gap:8}}>
       <button className="btn btn-outline" onClick={()=>setStep(3)}>←</button>
       <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting} style={{padding:'10px 28px',fontSize:15}}>
-        {submitting ? '创建中...' : '🚀 启动迁移任务'}
+        {submitting ? '创建中...' : '启动迁移任务'}
       </button>
     </div>
   </>
