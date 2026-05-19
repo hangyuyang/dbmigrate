@@ -1,0 +1,7 @@
+# 无需基础镜像 — Go 静态编译的二进制自包含
+FROM scratch
+COPY bin/dbmigrate-server-linux /dbmigrate-server
+COPY web/dist /opt/dbmigrate/web/dist
+VOLUME /opt/dbmigrate/data
+EXPOSE 8080
+ENTRYPOINT ["/dbmigrate-server", "--port", "8080", "--web-dir", "/opt/dbmigrate/web/dist", "--data-dir", "/opt/dbmigrate/data"]
