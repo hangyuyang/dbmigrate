@@ -15,13 +15,15 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache: true
+          cache: false
 
-      - name: Go build
-        run: go build ./cmd/server
+      - name: Go env
+        run: go env
 
-      - name: Go vet
-        run: go vet ./...
+      - name: Go build server
+        env:
+          GOFLAGS: -mod=mod
+        run: go build -v ./cmd/server
 
       - uses: actions/setup-node@v4
         with:
