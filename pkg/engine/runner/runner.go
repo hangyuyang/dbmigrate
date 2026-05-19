@@ -164,6 +164,12 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 		}
 
 		t.Progress.TotalTables = len(tables)
+		var totalRows int64
+		for _, tbl := range tables {
+			totalRows += tbl.RowCount
+		}
+		t.Progress.TotalRows = totalRows
+		r.store.Update(t)
 		for i, table := range tables {
 			if err := r.migrateTable(ctx, srcPlugin, tgtPlugin, t, table, &t.Progress); err != nil {
 				log.Printf("[Runner] ✗ table %s: %v", table.Name, err)

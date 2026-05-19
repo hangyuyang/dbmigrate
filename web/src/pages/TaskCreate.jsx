@@ -217,11 +217,12 @@ export default function TaskCreate() {
   }
 
   async function handleSubmit() {
+    if (selectedItems.length === 0) { alert('请在「对象选择」步骤中添加至少一个迁移对象'); return }
     setSubmitting(true)
     try {
       const src = {...source, type: srcType}
-      const tgtSchema = selectedItems.length > 0 ? (selectedItems[0].targetSchema || selectedItems[0].schema) : ''
-      const tgt = {...target, type: tgtType, database: tgtSchema || selectedDB}
+      const tgtSchema = selectedItems[0].targetSchema || selectedItems[0].schema
+      const tgt = {...target, type: tgtType, database: tgtSchema}
       if (src.cluster_name && src.tenant_name) src.user = `root@${src.tenant_name}#${src.cluster_name}`
 
       // Auto-derive source database from schema tree selection
