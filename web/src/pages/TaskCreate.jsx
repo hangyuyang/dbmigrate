@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createTask, testConnection, discoverSchema } from '../api/client'
 
-const STEPS = ['选择数据库', '连接配置', '迁移阶段', '迁移选型', '性能配置']
+const STEPS = ['选择数据库', '连接配置', '迁移阶段', '对象选择', '性能配置']
 
 const DB_CAPABILITY = {
   sources: [
@@ -22,6 +22,7 @@ export default function TaskCreate() {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const [taskName, setTaskName] = useState('')
 
   const [srcType, setSrcType] = useState('oceanbase')
   const [tgtType, setTgtType] = useState('polardbx')
@@ -203,7 +204,7 @@ export default function TaskCreate() {
 
       const mode = [migrateSchema&&'schema',migrateFull&&'full',migrateCDC&&'cdc'].filter(Boolean).join('+')
       await createTask({
-        name: `OB → PDB-X`,
+        name: taskName || 'OB → PDB-X',
         mode, source: src, target: tgt,
         filter: { include_tables: [], exclude_tables: [], include_schemas: schemaList },
         migrate_objects: objects,
@@ -238,6 +239,14 @@ export default function TaskCreate() {
     <StepBar/>
     <div className="card" style={{textAlign:'center',padding:'32px'}}>
       <div style={{fontSize:13,color:'var(--text-dim)',marginBottom:20}}>选择源端和目标端数据库类型</div>
+
+      <div style={{maxWidth:400,margin:'0 auto 24px',textAlign:'left'}}>
+        <div className="form-group">
+          <label>任务名称</label>
+          <input value={taskName} onChange={e=>setTaskName(e.target.value)} placeholder="输入任务名称，如：OB生产库→PDB-X迁移" />
+        </div>
+      </div>
+
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'center',gap:24,flexWrap:'wrap'}}>
         <div style={{display:'flex',flexDirection:'column',gap:12,minWidth:300}}>
           <div style={{fontSize:13,fontWeight:600,color:'var(--text-dim)',textAlign:'center',marginBottom:4}}>源端数据库</div>
@@ -450,172 +459,112 @@ export default function TaskCreate() {
     </div>
   </>
 
-  // ============ STEP 4: 迁移选型 ============
+  // ============ STEP 4: 对象选择 ============
   if (step === 3) {
+    const checkedCount = Object.keys(selectedTables).length
     return <>
-    <div className="header"><h1>迁移选型</h1></div>
+    <div className="header"><h1>对象选择</h1></div>
     <StepBar/>
 
-    {/* Mode tabs */}
-    <div style={{display:'flex',gap:0,marginBottom:16,background:'var(--bg-card)',borderRadius:'var(--radius)',overflow:'hidden',boxShadow:'var(--shadow)'}}>
-      {[
-        {k:'specific',label:'指定对象',desc:'手动选择需要迁移的表和视图'},
-        {k:'pattern',label:'匹配规则',desc:'按通配符规则批量匹配迁移对象'},
-      ].map(m=>(
-        <div key={m.k} onClick={()=>setSelectMode(m.k)} style={{
-          flex:1,textAlign:'center',padding:'12px 8px',cursor:'pointer',fontSize:14,fontWeight:600,
-          background:selectMode===m.k?'var(--primary)':'transparent',
-          color:selectMode===m.k?'#fff':'var(--text-dim)',
-          transition:'all .2s',borderBottom:selectMode===m.k?'none':'2px solid var(--border)'
-        }}>
-          {m.label}
-          <div style={{fontSize:11,fontWeight:400,marginTop:2,opacity:.7}}>{m.desc}</div>
-        </div>
-      ))}
-    </div>
-
-    {selectMode === 'specific' ? (
-      /* ====== 指定对象模式：双栏布局 ====== */
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-        {/* Left: Source Tree */}
-        <div className="card">
-          <div className="card-header">源端数据库对象</div>
-          {loadingSchema ? (
-            <div style={{textAlign:'center',padding:60}}><div className="spinner" style={{margin:'0 auto'}}/><div style={{marginTop:8,fontSize:13,color:'var(--text-dim)'}}>加载中...</div></div>
-          ) : (
-            <div style={{maxHeight:420,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6}}>
-              {schemaTree.map(schema => {
-                const tables = schema.tables || []
-                return (
-                  <div key={schema.name}>
-                    <div onClick={()=>toggleSchema(schema.name)} style={{
-                      display:'flex',alignItems:'center',gap:8,padding:'8px 12px',cursor:'pointer',fontWeight:600,fontSize:13,
-                      background:'#f8fafc',borderBottom:'1px solid var(--border)',userSelect:'none'
-                    }}>
-                      <span style={{fontSize:11}}>{expandedSchemas[schema.name]?'▼':'▶'}</span>
-                      <span>📁 {schema.name}</span>
-                      <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:'auto'}}>{tables.length} 表</span>
-                    </div>
-                    {expandedSchemas[schema.name] && tables.map(table => {
-                      const added = selectedItems.find(i=>i.schema===schema.name && i.table===table.name)
-                      return (
-                        <div key={table.name} style={{
-                          display:'flex',alignItems:'center',gap:8,padding:'6px 12px 6px 36px',fontSize:13,
-                          borderBottom:'1px solid #f1f5f9',userSelect:'none'
-                        }}>
-                          <span>📊 {table.name}</span>
-                          <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:'auto'}}>{table.rows>0?`${(table.rows/1000).toFixed(1)}K`:''}</span>
-                          {added ? (
-                            <span style={{fontSize:11,color:'var(--success)'}}>✓ 已添加</span>
-                          ) : (
-                            <button className="btn btn-primary btn-sm" style={{padding:'2px 10px',fontSize:11}} onClick={()=>addToSelected(schema.name,table.name)}>+ 选择</button>
-                          )}
-                        </div>
-                      )
-                    })}
+    <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:16,alignItems:'start'}}>
+      {/* Left: Source Tree with checkboxes */}
+      <div className="card">
+        <div className="card-header">源端数据库对象</div>
+        {loadingSchema ? (
+          <div style={{textAlign:'center',padding:60}}><div className="spinner" style={{margin:'0 auto'}}/><div style={{marginTop:8,fontSize:13,color:'var(--text-dim)'}}>加载中...</div></div>
+        ) : (
+          <div style={{maxHeight:420,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6}}>
+            {schemaTree.map(schema => {
+              const tables = schema.tables || []
+              const allSelected = tables.length > 0 && tables.every(t => selectedTables[`${schema.name}.${t.name}`])
+              return (
+                <div key={schema.name}>
+                  <div onClick={()=>toggleSchema(schema.name)} style={{
+                    display:'flex',alignItems:'center',gap:8,padding:'8px 12px',cursor:'pointer',fontWeight:600,fontSize:13,
+                    background:'#f8fafc',borderBottom:'1px solid var(--border)',userSelect:'none'
+                  }}>
+                    <span style={{fontSize:11}}>{expandedSchemas[schema.name] ? '▼' : '▶'}</span>
+                    <input type="checkbox" checked={allSelected} onChange={e=>{e.stopPropagation();toggleAllTables(schema.name,tables)}} style={{width:16,height:16}}/>
+                    <span>📁 {schema.name}</span>
+                    <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:'auto'}}>{tables.length} 表</span>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Right: Selected Items */}
-        <div className="card">
-          <div className="card-header">
-            <span>已选对象 ({selectedItems.length})</span>
-            {selectedItems.length > 0 && (
-              <button className="btn btn-outline btn-sm" onClick={()=>setSelectedItems([])} style={{fontSize:11}}>清空全部</button>
-            )}
-          </div>
-          {selectedItems.length === 0 ? (
-            <div style={{textAlign:'center',padding:60,color:'var(--text-dim)',fontSize:13}}>
-              <div style={{fontSize:36,marginBottom:8}}>📋</div>
-              点击左侧对象的 [+ 选择] 按钮添加
-            </div>
-          ) : (
-            <div style={{maxHeight:420,overflowY:'auto'}}>
-              {selectedItems.map((item,i) => (
-                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderBottom:'1px solid var(--border)',fontSize:13}}>
-                  <span style={{flex:1}}>
-                    <span style={{color:'var(--text-dim)',fontSize:11}}>{item.schema}.</span>
-                    {renameItem === i ? (
-                      <input autoFocus value={item.targetName} onChange={e=>renameSelected(i,e.target.value)} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)} style={{width:120,padding:'2px 6px',fontSize:12}}/>
-                    ) : (
-                      <span style={{fontWeight:500}}>{item.targetName}</span>
-                    )}
-                    {item.targetName !== item.table && <span style={{fontSize:11,color:'var(--text-dim)'}}> ← {item.table}</span>}
-                  </span>
-                  <button className="btn btn-outline btn-sm" style={{padding:'2px 8px',fontSize:10}} onClick={()=>setRenameItem(i)}>重命名</button>
-                  <button className="btn btn-outline btn-sm" style={{padding:'2px 8px',fontSize:10,color:'var(--error)'}} onClick={()=>removeSelected(i)}>移除</button>
+                  {expandedSchemas[schema.name] && tables.map(table => (
+                    <div key={table.name} onClick={()=>toggleTable(schema.name,table.name)} style={{
+                      display:'flex',alignItems:'center',gap:8,padding:'6px 12px 6px 36px',cursor:'pointer',fontSize:13,
+                      background:selectedTables[`${schema.name}.${table.name}`]?'var(--primary-light)':'white',
+                      borderBottom:'1px solid #f1f5f9',userSelect:'none'
+                    }}>
+                      <input type="checkbox" checked={!!selectedTables[`${schema.name}.${table.name}`]} onChange={()=>{}} style={{width:14,height:14}}/>
+                      <span>📊 {table.name}</span>
+                      <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:'auto'}}>{table.rows>0?`${(table.rows/1000).toFixed(1)}K`:''}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Center: Add button */}
+      <div style={{display:'flex',flexDirection:'column',justifyContent:'center',paddingTop:80}}>
+        <button className="btn btn-primary" onClick={()=>{
+          const toAdd = []
+          schemaTree.forEach(schema => {
+            (schema.tables||[]).forEach(table => {
+              if (selectedTables[`${schema.name}.${table.name}`] && !selectedItems.find(i=>i.schema===schema.name&&i.table===table.name)) {
+                toAdd.push({schema:schema.name, table:table.name, targetName:table.name})
+              }
+            })
+          })
+          setSelectedItems(prev => [...prev, ...toAdd])
+        }} style={{padding:'10px 20px',fontSize:13,whiteSpace:'nowrap'}}>
+          ▶ 添加所选
+        </button>
+      </div>
+
+      {/* Right: Selected Items */}
+      <div className="card">
+        <div className="card-header">
+          <span>已选对象 ({selectedItems.length})</span>
+          {selectedItems.length > 0 && (
+            <button className="btn btn-outline btn-sm" onClick={()=>setSelectedItems([])} style={{fontSize:11}}>清空全部</button>
           )}
         </div>
-      </div>
-    ) : (
-      /* ====== 匹配规则模式 ====== */
-      <div>
-        <div className="card">
-          <div className="card-header">源端数据库</div>
-          <div className="form-group">
-            <select value={selectedDB} onChange={e=>setSelectedDB(e.target.value)} style={{fontSize:14}}>
-              <option value="">请选择 Schema</option>
-              {schemaTree.map(s=>(
-                <option key={s.name} value={s.name}>{s.name}</option>
-              ))}
-            </select>
+        {selectedItems.length === 0 ? (
+          <div style={{textAlign:'center',padding:60,color:'var(--text-dim)',fontSize:13}}>
+            <div style={{fontSize:36,marginBottom:8}}>📋</div>
+            勾选左侧对象后，点击「添加所选」
           </div>
-        </div>
-        <div className="form-row">
-          <div className="card" style={{flex:1}}>
-            <div className="card-header">包含规则</div>
-            <div className="form-group">
-              <label>对象名称（支持通配符 *）</label>
-              <textarea value={patternInclude} onChange={e=>setPatternInclude(e.target.value)} placeholder={'每行一条规则，支持 * 通配符\n例如：\nt_*\nsbtest*\ntj'} rows={5}/>
-              <div className="help-text">匹配的表将被包含在迁移范围内</div>
-            </div>
-          </div>
-          <div className="card" style={{flex:1}}>
-            <div className="card-header">排除规则</div>
-            <div className="form-group">
-              <label>对象名称（支持通配符 *）</label>
-              <textarea value={patternExclude} onChange={e=>setPatternExclude(e.target.value)} placeholder={'每行一条规则，支持 * 通配符\n例如：\ntmp_*\n*_bak\n*_log'} rows={5}/>
-              <div className="help-text">匹配的表将被排除在迁移范围外</div>
-            </div>
-          </div>
-        </div>
-        <div className="card">
-          <div className="card-header">迁移对象类型</div>
-          <div style={{display:'flex',gap:12}}>
-            {[{k:'tables',label:'📊 表'},{k:'views',label:'👁 视图'},{k:'indexes',label:'📑 索引'}].map(o=>(
-              <label key={o.k} style={{display:'flex',gap:6,alignItems:'center',cursor:'pointer',padding:'8px 16px',borderRadius:8,
-                background:objects[o.k]?'var(--primary-light)':'white',border:`1px solid ${objects[o.k]?'var(--primary)':'var(--border)'}`}}>
-                <input type="checkbox" checked={objects[o.k]} onChange={e=>setObjects(p=>({...p,[o.k]:e.target.checked}))}/>
-                {o.label}
-              </label>
+        ) : (
+          <div style={{maxHeight:420,overflowY:'auto'}}>
+            {selectedItems.map((item,i) => (
+              <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderBottom:'1px solid var(--border)',fontSize:13}}>
+                <span style={{flex:1}}>
+                  <span style={{color:'var(--text-dim)',fontSize:11}}>{item.schema}.</span>
+                  {renameItem === i ? (
+                    <input autoFocus value={item.targetName} onChange={e=>renameSelected(i,e.target.value)} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)} style={{width:120,padding:'2px 6px',fontSize:12}}/>
+                  ) : (
+                    <span style={{fontWeight:500}}>{item.targetName}</span>
+                  )}
+                  {item.targetName !== item.table && <span style={{fontSize:11,color:'var(--text-dim)',marginLeft:4}}>← {item.table}</span>}
+                </span>
+                <button className="btn btn-outline btn-sm" style={{padding:'2px 8px',fontSize:10}} onClick={()=>setRenameItem(i)}>重命名</button>
+                <button className="btn btn-outline btn-sm" style={{padding:'2px 8px',fontSize:10,color:'var(--error)'}} onClick={()=>removeSelected(i)}>移除</button>
+              </div>
             ))}
           </div>
-        </div>
-      </div>
-    )}
-
-    <div className="card">
-      <div className="card-header">目标数据库</div>
-      <div className="form-group">
-        <input value={selectedDB} onChange={e=>setSelectedDB(e.target.value)} placeholder="输入目标 PolarDB-X 中的数据库名，如 yyhdb"/>
-        <div className="help-text">数据将迁移到此数据库中</div>
+        )}
       </div>
     </div>
 
-    <div style={{display:'flex',justifyContent:'flex-end',marginTop:8,gap:8}}>
+    <div style={{display:'flex',justifyContent:'flex-end',marginTop:16,gap:8}}>
       <button className="btn btn-outline" onClick={()=>setStep(2)}>←</button>
       <button className="btn btn-primary" onClick={()=>setStep(4)}>下一步 →</button>
     </div>
   </>
-
   }
+
 
   // ============ STEP 5 ============
   return <>
