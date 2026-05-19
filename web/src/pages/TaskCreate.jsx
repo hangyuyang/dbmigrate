@@ -666,6 +666,14 @@ export default function TaskCreate() {
       </div>
     </div>
 
+    <div className="card">
+      <div className="card-header">目标数据库</div>
+      <div className="form-group">
+        <input value={selectedDB} onChange={e=>setSelectedDB(e.target.value)} placeholder="输入目标数据库名，如 yyhdb（不存在自动创建）"/>
+        <div className="help-text">数据将迁移到此数据库中，若不存在自动创建</div>
+      </div>
+    </div>
+
     <div style={{display:'flex',justifyContent:'flex-end',marginTop:16,gap:8}}>
       <button className="btn btn-outline" onClick={()=>setStep(2)}>←</button>
       <button className="btn btn-primary" onClick={()=>setStep(4)}>下一步 →</button>
