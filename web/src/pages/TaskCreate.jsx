@@ -1,16 +1,26 @@
 import { useState, useEffect } from 'react'
 
-function CategoryHeader({label, count, defaultOpen, children}) {
-  const [open, setOpen] = useState(defaultOpen !== false)
+function CatRow({label, count, allSelected, someSelected, onToggleAll, children}) {
+  const [open, setOpen] = useState(count > 0)
   return <>
-    <div onClick={()=>setOpen(!open)} style={{padding:'4px 14px 2px 28px',fontSize:11,color:count>0?'var(--text-dim)':'#cbd5e1',fontWeight:600,display:'flex',alignItems:'center',gap:6,cursor:'pointer',userSelect:'none'}}>
-      <svg width="8" height="8" viewBox="0 0 8 8" style={{transform:open?'rotate(90deg)':'rotate(0deg)',transition:'transform .15s',flexShrink:0}}>
+    <div style={{padding:'4px 14px 2px 28px',fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:6,userSelect:'none'}}>
+      <svg width="8" height="8" viewBox="0 0 8 8" onClick={()=>setOpen(!open)} style={{transform:open?'rotate(90deg)':'rotate(0deg)',transition:'transform .15s',flexShrink:0,cursor:'pointer'}}>
         <path d="M3 1l3 3-3 3" stroke={count>0?'#94a3b8':'#cbd5e1'} strokeWidth="1.2" fill="none" strokeLinecap="round"/>
       </svg>
-      <span>{label} ({count})</span>
+      {count > 0 && <input type="checkbox" checked={allSelected} ref={el=>{if(el&&someSelected&&!allSelected)el.indeterminate=true}} onChange={onToggleAll} style={{width:12,height:12,accentColor:'var(--primary)',flexShrink:0}}/>}
+      <span style={{color:count>0?'var(--text-dim)':'#cbd5e1',cursor:'pointer'}} onClick={()=>setOpen(!open)}>{label} ({count})</span>
     </div>
     {open && children}
   </>
+}
+
+function DisabledCat({label, count}) {
+  return (
+    <div style={{padding:'4px 14px 2px 28px',fontSize:11,color:'#cbd5e1',display:'flex',alignItems:'center',gap:6}}>
+      <svg width="8" height="8" viewBox="0 0 8 8"><path d="M3 1l3 3-3 3" stroke="#cbd5e1" strokeWidth="1.2" fill="none" strokeLinecap="round"/></svg>
+      {label} ({count})
+    </div>
+  )
 }
 import { useNavigate } from 'react-router-dom'
 import { createTask, testConnection, discoverSchema } from '../api/client'
@@ -477,6 +487,11 @@ export default function TaskCreate() {
   // ============ STEP 4: 对象选择 ============
   if (step === 3) {
     const checkedCount = Object.keys(selectedTables).length
+    const [checkedItems, setCheckedItems] = useState({})
+    const clearChecked = () => setCheckedItems({})
+    const toggleCheckedItem = (idx) => setCheckedItems(p=>{const n={...p};if(n[idx])delete n[idx];else n[idx]=true;return n})
+    const toggleAllChecked = (indices) => setCheckedItems(p=>{const all=indices.every(i=>p[i]);const n={...p};indices.forEach(i=>all?delete n[i]:n[i]=true);return n})
+    const checkedCount2 = Object.keys(checkedItems).length
     return <>
     <div className="header"><h1>对象选择</h1></div>
     <StepBar/>
@@ -502,7 +517,6 @@ export default function TaskCreate() {
               const someSelected = selCount > 0 && !allSelected
               return (
                 <div key={schema.name}>
-                  {/* Schema */}
                   <div onClick={()=>toggleSchema(schema.name)} style={{
                     display:'flex',alignItems:'center',gap:6,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,
                     background:'#fafbfc',borderBottom:'1px solid #eef2f7',userSelect:'none'
@@ -515,15 +529,15 @@ export default function TaskCreate() {
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
                       <ellipse cx="8" cy="3.5" rx="5.5" ry="1.8" stroke="#d97706" strokeWidth="1.2"/>
                       <path d="M2.5 3.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#d97706" strokeWidth="1.2" fill="none"/>
-                      <path d="M2.5 7.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#d97706" strokeWidth="1.2" fill="none"/>
                     </svg>
                     <span style={{flex:1}}>{schema.name}</span>
                     <span style={{fontSize:11,color:'var(--text-dim)'}}>{tables.length} 表</span>
                   </div>
                   {expandedSchemas[schema.name] && (
                     <div>
-                      {/* Category: 表 */}
-                      <CategoryHeader label="表" count={tables.length} defaultOpen={true}>
+                      {/* Category: 表 - WITH select-all checkbox */}
+                      <CatRow label="表" count={tables.length} allSelected={tables.length>0&&tables.every(t=>selectedTables[`${schema.name}.${t.name}`])}
+                        onToggleAll={()=>toggleAllTables(schema.name,tables)}>
                         {tables.map(table => {
                           const sel = !!selectedTables[`${schema.name}.${table.name}`]
                           return (
@@ -537,18 +551,9 @@ export default function TaskCreate() {
                             </div>
                           )
                         })}
-                      </CategoryHeader>
-                      {/* Empty categories for future: 视图, 存储过程 */}
-                      <div style={{padding:'4px 14px 2px 28px',fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:6}}>
-                        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3.5 1.5l4 3.5-4 3.5" stroke="#cbd5e1" strokeWidth="1.2" fill="none"/></svg>
-                        <svg width="10" height="10" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" stroke="#cbd5e1" strokeWidth="1"/></svg>
-                        视图 (0)
-                      </div>
-                      <div style={{padding:'4px 14px 2px 28px',fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:6}}>
-                        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3.5 1.5l4 3.5-4 3.5" stroke="#cbd5e1" strokeWidth="1.2" fill="none"/></svg>
-                        <svg width="10" height="10" viewBox="0 0 12 12"><rect x="2" y="3" width="8" height="6" rx="1" stroke="#cbd5e1" strokeWidth="1"/><text x="4" y="8" fontSize="5" fill="#cbd5e1">fn</text></svg>
-                        函数 (0)
-                      </div>
+                      </CatRow>
+                      <DisabledCat label="视图" count={0}/>
+                      <DisabledCat label="函数" count={0}/>
                     </div>
                   )}
                 </div>
@@ -577,18 +582,25 @@ export default function TaskCreate() {
       <div className="card" style={{flex:1,display:'flex',flexDirection:'column'}}>
         <div className="card-header" style={{fontSize:13,borderBottom:'1px solid var(--border)',padding:'10px 14px',flexShrink:0}}>
           <span style={{display:'flex',alignItems:'center',gap:6}}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3" rx="6" ry="2" stroke="#16a34a" strokeWidth="1.3"/><path d="M2 3v4c0 1.1 2.7 2 6 2s6-.9 6-2V3" stroke="#16a34a" strokeWidth="1.3" fill="none"/><path d="M2 7v4c0 1.1 2.7 2 6 2s6-.9 6-2V7" stroke="#16a34a" strokeWidth="1.3" fill="none"/></svg>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3" rx="6" ry="2" stroke="#16a34a" strokeWidth="1.3"/><path d="M2 3v4c0 1.1 2.7 2 6 2s6-.9 6-2V3" stroke="#16a34a" strokeWidth="1.3" fill="none"/></svg>
             已选对象
           </span>
           <span style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontSize:11,color:'var(--text-dim)'}}>{selectedItems.length} 个</span>
-            {selectedItems.length > 0 && <button className="btn btn-outline btn-sm" onClick={()=>setSelectedItems([])} style={{fontSize:10,padding:'1px 6px'}}>清空</button>}
+            {checkedCount2 > 0 && (
+              <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:'1px 6px',color:'var(--error)'}} onClick={()=>{
+                const indices = Object.keys(checkedItems).map(Number).sort((a,b)=>b-a)
+                setSelectedItems(prev=>prev.filter((_,i)=>!checkedItems[i]))
+                clearChecked()
+              }}>删除选中 ({checkedCount2})</button>
+            )}
+            {selectedItems.length > 0 && <button className="btn btn-outline btn-sm" onClick={()=>{setSelectedItems([]);clearChecked()}} style={{fontSize:10,padding:'1px 6px'}}>清空</button>}
           </span>
         </div>
         {selectedItems.length === 0 ? (
-          <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'var(--text-dim)',fontSize:12,lineHeight:2}}>
+          <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-dim)',fontSize:12,lineHeight:2}}>
             <svg width="32" height="32" viewBox="0 0 40 40" fill="none" style={{opacity:.2,marginBottom:8}}>
-              <ellipse cx="20" cy="9" rx="14" ry="4.5" stroke="#94a3b8" strokeWidth="2"/><path d="M6 9v9c0 2.5 6.3 4.5 14 4.5s14-2 14-4.5V9" stroke="#94a3b8" strokeWidth="2" fill="none"/><path d="M6 18v9c0 2.5 6.3 4.5 14 4.5s14-2 14-4.5v-9" stroke="#94a3b8" strokeWidth="2" fill="none"/>
+              <ellipse cx="20" cy="9" rx="14" ry="4.5" stroke="#94a3b8" strokeWidth="2"/><path d="M6 9v9c0 2.5 6.3 4.5 14 4.5s14-2 14-4.5V9" stroke="#94a3b8" strokeWidth="2" fill="none"/>
             </svg>
             <div>在左侧勾选后点击 › 添加</div>
           </div>
@@ -598,15 +610,18 @@ export default function TaskCreate() {
               const schemas = [...new Set(selectedItems.map(i=>i.targetSchema||i.schema))]
               return schemas.map((schemaName, schemaIdx) => {
                 const items = selectedItems.filter(i=>(i.targetSchema||i.schema)===schemaName)
+                const itemIndices = items.map(item => selectedItems.indexOf(item))
+                const allChecked = itemIndices.every(i=>checkedItems[i])
+                const someChecked = itemIndices.some(i=>checkedItems[i]) && !allChecked
                 return (
                   <div key={schemaName}>
-                    {/* Schema header with rename */}
+                    {/* Schema header */}
                     <div style={{
                       display:'flex',alignItems:'center',gap:6,padding:'8px 14px',fontSize:13,fontWeight:600,
                       background:'#f0fdf4',borderBottom:'1px solid #dcfce7',userSelect:'none'
                     }}>
                       <svg width="10" height="10" viewBox="0 0 10 10"><path d="M3.5 1.5l4 3.5-4 3.5" stroke="#16a34a" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
-                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3.5" rx="5.5" ry="1.8" stroke="#16a34a" strokeWidth="1.2"/><path d="M2.5 3.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#16a34a" strokeWidth="1.2" fill="none"/><path d="M2.5 7.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#16a34a" strokeWidth="1.2" fill="none"/></svg>
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="3.5" rx="5.5" ry="1.8" stroke="#16a34a" strokeWidth="1.2"/><path d="M2.5 3.5v4c0 .9 2.5 1.7 5.5 1.7s5.5-.8 5.5-1.7v-4" stroke="#16a34a" strokeWidth="1.2" fill="none"/></svg>
                       {renameItem === `schema_${schemaIdx}` ? (
                         <input autoFocus value={schemaName} onChange={e=>{
                           const newName = e.target.value
@@ -619,24 +634,27 @@ export default function TaskCreate() {
                       <button className="btn btn-outline btn-sm" onClick={()=>setRenameItem(`schema_${schemaIdx}`)} style={{padding:'0 5px',fontSize:9,lineHeight:'18px',flexShrink:0}}>✎</button>
                       <span style={{fontSize:11,color:'var(--text-dim)'}}>表 {items.length}</span>
                     </div>
-                    <div style={{padding:'2px 14px 2px 46px',fontSize:11,color:'var(--text-dim)',fontWeight:600}}>表</div>
-                    {items.map((item,i) => {
-                      const globalIdx = selectedItems.indexOf(item)
-                      return (
-                        <div key={i} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 14px 4px 46px',fontSize:12,borderBottom:'1px solid #f8fafc'}}>
-                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="1.5" width="10" height="9" rx="1" stroke="#16a34a" strokeWidth="1"/></svg>
-                          {renameItem === globalIdx ? (
-                            <input autoFocus value={item.targetName} onChange={e=>renameSelected(globalIdx,e.target.value)} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)}
-                              style={{flex:1,padding:'2px 5px',fontSize:11,border:'1px solid var(--primary)',borderRadius:3,outline:'none'}}/>
-                          ) : (
-                            <span style={{flex:1}}>{item.targetName}</span>
-                          )}
-                          {item.targetName !== item.table && <span style={{fontSize:10,color:'var(--text-dim)',marginLeft:2}}>←{item.table}</span>}
-                          <button className="btn btn-outline btn-sm" onClick={()=>setRenameItem(globalIdx)} style={{padding:'0 5px',fontSize:9,lineHeight:'18px',flexShrink:0}}>✎</button>
-                          <button className="btn btn-outline btn-sm" onClick={()=>removeSelected(globalIdx)} style={{padding:'0 5px',fontSize:10,color:'var(--error)',flexShrink:0,lineHeight:'18px'}}>✕</button>
-                        </div>
-                      )
-                    })}
+                    {/* Category: 表 — with select-all and individual checkboxes */}
+                    <CatRow label="表" count={items.length} allSelected={allChecked} someSelected={someChecked}
+                      onToggleAll={()=>toggleAllChecked(itemIndices)}>
+                      {items.map((item) => {
+                        const idx = selectedItems.indexOf(item)
+                        return (
+                          <div key={idx} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 14px 4px 46px',fontSize:12,borderBottom:'1px solid #f8fafc'}}>
+                            <input type="checkbox" checked={!!checkedItems[idx]} onChange={()=>toggleCheckedItem(idx)} style={{width:13,height:13,accentColor:'var(--error)',flexShrink:0}}/>
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="1.5" width="10" height="9" rx="1" stroke="#16a34a" strokeWidth="1"/></svg>
+                            {renameItem === idx ? (
+                              <input autoFocus value={item.targetName} onChange={e=>renameSelected(idx,e.target.value)} onBlur={()=>setRenameItem(null)} onKeyDown={e=>e.key==='Enter'&&setRenameItem(null)}
+                                style={{flex:1,padding:'2px 5px',fontSize:11,border:'1px solid var(--primary)',borderRadius:3,outline:'none'}}/>
+                            ) : (
+                              <span style={{flex:1}}>{item.targetName}</span>
+                            )}
+                            {item.targetName !== item.table && <span style={{fontSize:10,color:'var(--text-dim)'}}>←{item.table}</span>}
+                            <button className="btn btn-outline btn-sm" onClick={()=>setRenameItem(idx)} style={{padding:'0 5px',fontSize:9,lineHeight:'18px',flexShrink:0}}>✎</button>
+                          </div>
+                        )
+                      })}
+                    </CatRow>
                   </div>
                 )
               })
