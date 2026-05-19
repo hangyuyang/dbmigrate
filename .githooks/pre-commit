@@ -1,0 +1,26 @@
+#!/bin/bash
+# DBMigrate pre-commit hook
+# 提交前自动检查：Go 编译 + React 构建 + 回归测试（可选）
+set -e
+
+echo "🔍 pre-commit: checking..."
+
+# ── Go 编译 ──
+echo "  Go build..."
+if ! go build ./... 2>/dev/null; then
+  echo "❌ Go build failed — commit blocked"
+  exit 1
+fi
+echo "  ✅ Go OK"
+
+# ── React 构建 ──
+echo "  React build..."
+if ! (cd web && npm run build -- --logLevel silent 2>&1 > /dev/null); then
+  echo "⚠️  React build failed — commit allowed but fix before push"
+fi
+
+# ── Go vet ──
+echo "  Go vet..."
+go vet ./... 2>/dev/null && echo "  ✅ vet OK" || echo "  ⚠️  vet warnings"
+
+echo "✅ pre-commit checks passed"
