@@ -113,27 +113,28 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 	}
 	defer srcPlugin.Close()
 
-	// 连接目标
+	// 连接目标（先不带库名，建库后重连）
 	log.Printf("[Runner] connecting to target...")
 	tgtCfg := t.Target
+	origDB := tgtCfg.Database
+	tgtCfg.Database = "" // 先不指定库，避免 ping 时报 Unknown database
 	if err := tgtPlugin.Connect(ctx, tgtCfg); err != nil {
 		return fmt.Errorf("connect target: %w", err)
 	}
 	defer tgtPlugin.Close()
 
 	// 确保目标数据库存在并重连
-	if t.Target.Database != "" {
-		createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARSET=utf8mb4", t.Target.Database)
+	if origDB != "" {
+		createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARSET=utf8mb4", origDB)
 		tgtPlugin.ApplyDDL(ctx, &plugin.DDLObject{SQL: createDB})
-		log.Printf("[Runner] ensured database %s exists", t.Target.Database)
+		log.Printf("[Runner] ensured database %s exists", origDB)
 
-		// 断开后用含目标库的连接重连
 		tgtPlugin.Close()
-		tgtCfg.Database = t.Target.Database
+		tgtCfg.Database = origDB
 		if err := tgtPlugin.Connect(ctx, tgtCfg); err != nil {
 			return fmt.Errorf("reconnect target with db: %w", err)
 		}
-		log.Printf("[Runner] reconnected to target with database %s", t.Target.Database)
+		log.Printf("[Runner] reconnected to target with database %s", origDB)
 	}
 
 	// 更新状态 → INIT
@@ -289,10 +290,15 @@ var obPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\s+AUTO_INCREMENT_MODE\s*=\s*'[^']*'`),
 }
 
+// varcharOverLimit maps VARCHAR(n>16383) to TEXT for PolarDB-X compatibility
+var varcharOverLimit = regexp.MustCompile(`(?i)varchar\(\d{5,}\)`)
+
 func sanitizeDDL(ddl string) string {
 	for _, re := range obPatterns {
 		ddl = re.ReplaceAllString(ddl, "")
 	}
+	// Map VARCHAR(>16383) → TEXT for PolarDB-X
+	ddl = varcharOverLimit.ReplaceAllString(ddl, "TEXT")
 	// fix double spaces
 	ddl = regexp.MustCompile(`  +`).ReplaceAllString(ddl, " ")
 	// fix trailing space before )
