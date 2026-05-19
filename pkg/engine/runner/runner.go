@@ -166,7 +166,9 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 		t.Progress.TotalTables = len(tables)
 		for i, table := range tables {
 			if err := r.migrateTable(ctx, srcPlugin, tgtPlugin, t, table, &t.Progress); err != nil {
-				return fmt.Errorf("migrate table %s: %w", table.Name, err)
+				log.Printf("[Runner] ✗ table %s: %v", table.Name, err)
+				t.Error = fmt.Sprintf("table %s: %v", table.Name, err)
+				continue
 			}
 			t.Progress.DoneTables = i + 1
 			log.Printf("[Runner] table %s done (%d/%d)", table.Name, i+1, len(tables))
@@ -266,7 +268,9 @@ func (r *Runner) migrateSchema(ctx context.Context, src plugin.SourcePlugin, tgt
 
 		_, err = tgt.ApplyDDL(ctx, obj)
 		if err != nil {
-			return fmt.Errorf("create table %s: %w", obj.Name, err)
+			log.Printf("[Runner] ✗ schema %s: %v", obj.Name, err)
+			t.Error = fmt.Sprintf("schema %s: %v", obj.Name, err)
+			continue
 		}
 		log.Printf("[Runner] created table %s", obj.Name)
 	}

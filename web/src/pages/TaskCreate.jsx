@@ -220,7 +220,8 @@ export default function TaskCreate() {
     setSubmitting(true)
     try {
       const src = {...source, type: srcType}
-      const tgt = {...target, type: tgtType, database: selectedDB}
+      const tgtSchema = selectedItems.length > 0 ? (selectedItems[0].targetSchema || selectedItems[0].schema) : ''
+      const tgt = {...target, type: tgtType, database: tgtSchema || selectedDB}
       if (src.cluster_name && src.tenant_name) src.user = `root@${src.tenant_name}#${src.cluster_name}`
 
       // Auto-derive source database from schema tree selection
