@@ -217,22 +217,21 @@ export default function TaskCreate() {
   }
 
   async function handleSubmit() {
-    if (selectedItems.length === 0) { alert('请在「对象选择」步骤中添加至少一个迁移对象'); return }
     setSubmitting(true)
     try {
       const src = {...source, type: srcType}
-      const tgtSchema = selectedItems[0].targetSchema || selectedItems[0].schema
-      const tgt = {...target, type: tgtType, database: tgtSchema}
-      if (src.cluster_name && src.tenant_name) src.user = `root@${src.tenant_name}#${src.cluster_name}`
-
-      // Auto-derive source database from schema tree selection
-      const schemas = new Set()
+      // Derive target database from left-panel schema checkboxes
+      const checkedSchemas = new Set()
       Object.keys(selectedTables).forEach(k => {
         const parts = k.split('.')
-        if (parts.length === 2) schemas.add(parts[0])
+        if (parts.length === 2) checkedSchemas.add(parts[0])
       })
-      const schemaList = [...schemas]
-      if (schemaList.length > 0) src.database = schemaList[0]
+      const schemaList = [...checkedSchemas]
+      if (schemaList.length === 0) { alert('请在「对象选择」步骤中勾选至少一个表'); return }
+      const tgtSchema = selectedItems.length > 0 ? (selectedItems[0].targetSchema || selectedItems[0].schema) : schemaList[0]
+      src.database = schemaList[0]
+      const tgt = {...target, type: tgtType, database: tgtSchema}
+      if (src.cluster_name && src.tenant_name) src.user = `root@${src.tenant_name}#${src.cluster_name}`
 
       const mode = [migrateSchema&&'schema',migrateFull&&'full',migrateCDC&&'cdc'].filter(Boolean).join('+')
       const created = await createTask({
