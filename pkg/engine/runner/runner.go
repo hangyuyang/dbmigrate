@@ -124,6 +124,14 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 	// 更新状态 → INIT
 	r.updateStatus(taskID, task.StatusInit, "")
 
+	// 确保目标数据库存在
+	if t.Target.Database != "" {
+		createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARSET=utf8mb4", t.Target.Database)
+		tgtPlugin.ApplyDDL(ctx, &plugin.DDLObject{SQL: createDB})
+		// Switch to target database
+		tgtPlugin.ApplyDDL(ctx, &plugin.DDLObject{SQL: fmt.Sprintf("USE `%s`", t.Target.Database)})
+	}
+
 	// Schema 迁移
 	if hasMode(t.Mode, "schema") {
 		log.Printf("[Runner] migrating schema...")
