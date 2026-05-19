@@ -97,8 +97,8 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 
 	// 找目标插件
 	tgtName := string(t.Target.Type)
-	if tgtName == "polardbx" {
-		tgtName = "mysql" // PolarDB-X 走 MySQL 协议
+	if tgtName == "polardbx" || tgtName == "polardbx-centralized" || tgtName == "polardbx-distributed" {
+		tgtName = "mysql"
 	}
 	tgtPlugin, ok := r.targets[tgtName]
 	if !ok {
