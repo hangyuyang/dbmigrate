@@ -124,6 +124,11 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 	defer tgtPlugin.Close()
 
 	// 确保目标数据库存在并重连
+	if origDB == "" {
+		// 如果目标库为空，使用源库名
+		origDB = t.Source.Database
+		log.Printf("[Runner] target database empty, using source: %s", origDB)
+	}
 	if origDB != "" {
 		createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARSET=utf8mb4", origDB)
 		tgtPlugin.ApplyDDL(ctx, &plugin.DDLObject{SQL: createDB})
