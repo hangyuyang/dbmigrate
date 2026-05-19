@@ -121,16 +121,23 @@ func (r *Runner) executeTask(ctx context.Context, taskID string) error {
 	}
 	defer tgtPlugin.Close()
 
-	// 更新状态 → INIT
-	r.updateStatus(taskID, task.StatusInit, "")
-
-	// 确保目标数据库存在
+	// 确保目标数据库存在并重连
 	if t.Target.Database != "" {
 		createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARSET=utf8mb4", t.Target.Database)
 		tgtPlugin.ApplyDDL(ctx, &plugin.DDLObject{SQL: createDB})
-		// Switch to target database
-		tgtPlugin.ApplyDDL(ctx, &plugin.DDLObject{SQL: fmt.Sprintf("USE `%s`", t.Target.Database)})
+		log.Printf("[Runner] ensured database %s exists", t.Target.Database)
+
+		// 断开后用含目标库的连接重连
+		tgtPlugin.Close()
+		tgtCfg.Database = t.Target.Database
+		if err := tgtPlugin.Connect(ctx, tgtCfg); err != nil {
+			return fmt.Errorf("reconnect target with db: %w", err)
+		}
+		log.Printf("[Runner] reconnected to target with database %s", t.Target.Database)
 	}
+
+	// 更新状态 → INIT
+	r.updateStatus(taskID, task.StatusInit, "")
 
 	// Schema 迁移
 	if hasMode(t.Mode, "schema") {
