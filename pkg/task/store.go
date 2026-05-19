@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -88,6 +89,12 @@ func (s *JSONStore) List() ([]*Task, error) {
 		}
 		tasks = append(tasks, task)
 	}
+
+	// 按创建时间倒序
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
+	})
+
 	return tasks, nil
 }
 
